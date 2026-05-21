@@ -421,6 +421,27 @@ function Kynox.copyMultiDropdownValue(value)
     return out
 end
 
+--[[
+    อัปเดต Fluent Options จาก CFG หลัง Reset / Load (ไม่ต้อง if ทีละตัว)
+    keys = { "AutoFarm", "WalkSpeed", "Mode", "Flags" }  -- ชื่อต้องตรงกับ AddToggle/Slider/Dropdown
+]]
+function Kynox.syncFluentOptions(options, cfg, keys)
+    if type(options) ~= "table" or type(cfg) ~= "table" or type(keys) ~= "table" then
+        return
+    end
+    for _, key in ipairs(keys) do
+        local opt = options[key]
+        local value = cfg[key]
+        if opt and type(opt.SetValue) == "function" and value ~= nil then
+            if type(value) == "table" then
+                opt:SetValue(Kynox.copyMultiDropdownValue(value))
+            else
+                opt:SetValue(value)
+            end
+        end
+    end
+end
+
 function Kynox.ensureConfigFolders()
     if type(isfolder) ~= "function" or type(makefolder) ~= "function" then
         return
