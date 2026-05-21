@@ -1533,10 +1533,10 @@ local aa = {
                                     Text = n.Title,
                                     FontFace = Font.new(
                                         "rbxasset://fonts/families/GothamSSm.json",
-                                        Enum.FontWeight.Regular,
+                                        Enum.FontWeight.Bold,
                                         Enum.FontStyle.Normal
                                     ),
-                                    TextSize = 15,
+                                    TextSize = 17,
                                     TextXAlignment = "Left",
                                     TextYAlignment = "Center",
                                     Size = UDim2.fromScale(0, 1),
