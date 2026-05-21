@@ -1536,7 +1536,7 @@ local aa = {
                                         Enum.FontWeight.Regular,
                                         Enum.FontStyle.Normal
                                     ),
-                                    TextSize = 12,
+                                    TextSize = 15,
                                     TextXAlignment = "Left",
                                     TextYAlignment = "Center",
                                     Size = UDim2.fromScale(0, 1),
@@ -1556,7 +1556,7 @@ local aa = {
                                         Enum.FontWeight.Regular,
                                         Enum.FontStyle.Normal
                                     ),
-                                    TextSize = 12,
+                                    TextSize = 13,
                                     TextXAlignment = "Left",
                                     TextYAlignment = "Center",
                                     Size = UDim2.fromScale(0, 1),
