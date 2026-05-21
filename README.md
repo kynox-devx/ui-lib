@@ -5,52 +5,43 @@ Fork of [Fluent](https://github.com/dawid-scripts/Fluent) for Kynox scripts.
 **Repo:** https://github.com/kynox-devx/ui-lib  
 **Branch:** `main`
 
-## Quick start (template)
+## โครงสร้าง repo
+
+| Path | คำอธิบาย |
+|------|----------|
+| `Kynox.lua` | Bootstrap — `initHub`, config, key loader, session timer |
+| `main.lua` | Fluent fork |
+| `SaveManager.lua` | Fluent save (legacy) |
+| `InterfaceManager.lua` | `KynoxConfigs/interface/options.json` |
+| `Template/Kynox.lua` | สคริปต์ต้นแบบสร้างเกมใหม่ |
+
+## ใช้ template
+
+**แก้ไฟล์ในเครื่อง:** `KynoxScript/Template/Kynox.lua` (workspace)  
+**หรือดึงจาก GitHub:**
+
+```lua
+loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/kynox-devx/ui-lib/main/Template/Kynox.lua"
+))()
+```
+
+## Quick start (เขียนเอง)
 
 ```lua
 local Kynox = loadstring(game:HttpGet("https://raw.githubusercontent.com/kynox-devx/ui-lib/main/Kynox.lua"))()
-local UI_GITHUB = Kynox.buildGithubUrls()
-
 if Kynox.guardDuplicate() then return end
 
 local hub = Kynox.initHub({
-    Github = UI_GITHUB,
-    CONFIG = CONFIG,              -- Window, Branding, Toggle, Game, Tabs, KeySystem
-    ConfigDefaults = { ... },     -- getgenv().Kynox.Configs defaults
-    ConfigExclude = { PlayersESP = true },
-    LegacyPaths = { "JinkX/old.json" },  -- optional migrate
+    Github = Kynox.buildGithubUrls(),
+    CONFIG = CONFIG,
+    ConfigDefaults = { MyToggle = false },
 })
 
-local Window, Tabs, CFG = hub.Window, hub.Tabs, hub.CFG
--- เติมแท็บฟีเจอร์เกมที่นี่
+-- UI: Default = CFG.xxx แล้ว Callback -> CFG.xxx = v; hub.SaveConfig()
 ```
 
-ดูตัวอย่างเต็ม: `Template/Kynox.lua`
-
-## WindUI / legacy scripts
-
-```lua
-local Kynox = loadstring(game:HttpGet(Kynox.UI_LIB .. "Kynox.lua"))()
-local cfg = Kynox.setupGameConfig({
-    Game = "Dueling Grounds",
-    Configs = getgenv().JinkX.Configs,
-    Exclude = { PlayersESP = true },
-    LegacyPaths = { "JinkX/Dueling Grounds.json" },
-}, notify)
-
-local overlay = Kynox.attachOverlay()  -- session timer + interface/options.json
-```
-
-## Files
-
-| File | Description |
-|------|-------------|
-| `Kynox.lua` | Bootstrap — `initHub`, config, key loader, session timer, overlay |
-| `main.lua` | Fluent fork |
-| `SaveManager.lua` | Fluent option save (legacy) |
-| `InterfaceManager.lua` | `interface/options.json` |
-
-## Config folders
+## Config (executor workspace)
 
 ```
 KynoxConfigs/
@@ -59,14 +50,18 @@ KynoxConfigs/
   interface/options.json
 ```
 
-## Key verify (optional)
+## WindUI (เกมเก่า เช่น Dueling Grounds)
 
 ```lua
-KeySystem = {
-    VerifyUrl = "https://api.example/verify",
-    VerifyMethod = "POST",
-    -- หรือ Verify = function(key) return true end
-}
+local Kynox = loadstring(game:HttpGet(Kynox.UI_LIB .. "Kynox.lua"))()
+Kynox.setupGameConfig({
+    Game = "Dueling Grounds",
+    Configs = getgenv().JinkX.Configs,
+    Exclude = { PlayersESP = true },
+    LegacyPaths = { "JinkX/Dueling Grounds.json" },
+}, notify)
+
+local overlay = Kynox.attachOverlay()
 ```
 
 ## Publish
@@ -77,3 +72,5 @@ git add -A
 git commit -m "your message"
 git push origin main
 ```
+
+รันสคริปต์ใหม่หลัง push (raw GitHub อาจ cache ~1 นาที)
