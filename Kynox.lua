@@ -314,6 +314,90 @@ Kynox.CONFIG_ROOT = "KynoxConfigs"
 Kynox.KEY_FOLDER = "KynoxConfigs/KeySystem"
 Kynox.GAMES_FOLDER = "KynoxConfigs/games"
 Kynox.INTERFACE_FOLDER = "KynoxConfigs/interface"
+Kynox.UI_LIB = "https://raw.githubusercontent.com/kynox-devx/ui-lib/main/"
+
+function Kynox.buildGithubUrls(base)
+    base = base or Kynox.UI_LIB
+    if base:sub(-1) ~= "/" then
+        base = base .. "/"
+    end
+    return {
+        ["Kynox.lua"] = base .. "Kynox.lua",
+        ["main.lua"] = base .. "main.lua",
+        ["SaveManager.lua"] = base .. "SaveManager.lua",
+        ["InterfaceManager.lua"] = base .. "InterfaceManager.lua",
+    }
+end
+
+function Kynox.loadInterfaceSettings()
+    local defaults = {
+        Theme = "Dark",
+        Acrylic = false,
+        Transparency = false,
+        MenuKeybind = "LeftControl",
+        ShowSessionTimer = false,
+    }
+    if type(isfile) ~= "function" or type(readfile) ~= "function" then
+        return defaults
+    end
+    Kynox.ensureConfigFolders()
+    local path = Kynox.INTERFACE_FOLDER .. "/options.json"
+    if not isfile(path) then
+        return defaults
+    end
+    local ok, decoded = pcall(function()
+        return HttpService:JSONDecode(readfile(path))
+    end)
+    if ok and type(decoded) == "table" then
+        for k, v in pairs(decoded) do
+            defaults[k] = v
+        end
+    end
+    defaults.ShowSessionTimer = defaults.ShowSessionTimer == true
+    return defaults
+end
+
+function Kynox.saveInterfaceSettings(settings)
+    if type(writefile) ~= "function" then
+        return false
+    end
+    Kynox.ensureConfigFolders()
+    local ok, encoded = pcall(function()
+        return HttpService:JSONEncode(settings)
+    end)
+    if not ok then
+        return false
+    end
+    writefile(Kynox.INTERFACE_FOLDER .. "/options.json", encoded)
+    return true
+end
+
+function Kynox.attachOverlay(opts)
+    opts = opts or {}
+    local settings = Kynox.loadInterfaceSettings()
+    local timer = Kynox.createSessionTimer({
+        StartTime = opts.StartTime or tick(),
+        Visible = settings.ShowSessionTimer,
+        Position = opts.Position,
+    })
+
+    local function setSessionTimerVisible(v)
+        settings.ShowSessionTimer = v == true
+        Kynox.saveInterfaceSettings(settings)
+        timer.setVisible(settings.ShowSessionTimer)
+    end
+
+    return {
+        Settings = settings,
+        SessionTimer = timer,
+        setSessionTimerVisible = setSessionTimerVisible,
+        reloadSettings = function()
+            settings = Kynox.loadInterfaceSettings()
+            timer.setVisible(settings.ShowSessionTimer)
+            return settings
+        end,
+    }
+end
 
 function Kynox.shallowCopy(t)
     local copy = {}
@@ -422,6 +506,32 @@ function Kynox.setupGameConfig(cfg, notify)
     local exclude = cfg.Exclude or {}
 
     Kynox.ensureConfigFolders()
+
+    local function migrateLegacyConfig()
+        local legacyPaths = cfg.LegacyPaths
+        if type(legacyPaths) ~= "table" then
+            return
+        end
+        if type(isfile) ~= "function" or type(readfile) ~= "function" or type(writefile) ~= "function" then
+            return
+        end
+        if isfile(path) then
+            return
+        end
+        for _, legacy in ipairs(legacyPaths) do
+            if type(legacy) == "string" and isfile(legacy) then
+                writefile(path, readfile(legacy))
+                notify({
+                    Title = cfg.NotifyTitle or "Kynox Hub",
+                    Content = "Migrated config from legacy path.",
+                    Duration = 4,
+                })
+                return
+            end
+        end
+    end
+
+    migrateLegacyConfig()
 
     local defaultsSnapshot = sanitizeConfigTable(Kynox.shallowCopy(configs), exclude)
 
@@ -925,7 +1035,56 @@ function Kynox.createSessionTimer(opts)
     return api
 end
 
+function Kynox.verifyKeyHttp(key, cfg)
+    local url = cfg.VerifyUrl
+    if not url or url == "" then
+        return nil
+    end
+
+    local body
+    if cfg.VerifyBody then
+        body = cfg.VerifyBody(key)
+    else
+        local ok, encoded = pcall(function()
+            return HttpService:JSONEncode({ key = key })
+        end)
+        body = ok and encoded or ('{"key":"' .. key:gsub('"', '\\"') .. '"}')
+    end
+
+    local method = (cfg.VerifyMethod or "POST"):upper()
+    local headers = cfg.VerifyHeaders or { ["Content-Type"] = "application/json" }
+    local req = (syn and syn.request) or http_request or (http and http.request) or request
+
+    if type(req) ~= "function" then
+        return false, "HTTP unavailable on this executor."
+    end
+
+    local ok, resp = pcall(function()
+        return req({
+            Url = url,
+            Method = method,
+            Headers = headers,
+            Body = method == "GET" and nil or body,
+        })
+    end)
+
+    if not ok or not resp then
+        return false, "Could not reach key server."
+    end
+
+    if cfg.VerifyResponse then
+        return cfg.VerifyResponse(resp, key)
+    end
+
+    local status = resp.StatusCode or resp.status or 0
+    if status >= 200 and status < 300 then
+        return true
+    end
+    return false, "Invalid key."
+end
+
 function Kynox.verifyKey(key, cfg)
+    cfg = cfg or {}
     key = type(key) == "string" and key:gsub("^%s+", ""):gsub("%s+$", "") or ""
     if key == "" then
         return false, "Please enter a key."
@@ -935,6 +1094,16 @@ function Kynox.verifyKey(key, cfg)
         if ok == false then
             return false, msg or "Invalid key."
         end
+        return true
+    end
+    local httpResult, httpMsg = Kynox.verifyKeyHttp(key, cfg)
+    if httpResult ~= nil then
+        if httpResult == true then
+            return true
+        end
+        return false, httpMsg or "Invalid key."
+    end
+    if cfg.RequireKey == false then
         return true
     end
     if #key < 8 then
@@ -1456,6 +1625,167 @@ function Kynox.runKeySystem(cfg, notify)
     end
 
     return passed
+end
+
+--[[
+    Bootstrap hub ครั้งเดียว (โหลด lib, key, window, config, interface, timer, toggle)
+    คืนค่า hub table — เกม/template เหลือแค่เติมแท็บฟีเจอร์
+]]
+function Kynox.initHub(cfg)
+    cfg = cfg or {}
+    local github = cfg.Github or Kynox.buildGithubUrls(cfg.UiLib)
+
+    local Fluent = Kynox.loadModule("main.lua", github)
+    local SaveManager = Kynox.loadModule("SaveManager.lua", github)
+    local InterfaceManager = Kynox.loadModule("InterfaceManager.lua", github)
+
+    getgenv().Kynox = getgenv().Kynox or {}
+    if cfg.ConfigDefaults then
+        getgenv().Kynox.Configs = getgenv().Kynox.Configs or cfg.ConfigDefaults
+        for k, v in pairs(cfg.ConfigDefaults) do
+            if getgenv().Kynox.Configs[k] == nil then
+                getgenv().Kynox.Configs[k] = v
+            end
+        end
+    else
+        getgenv().Kynox.Configs = getgenv().Kynox.Configs or {}
+    end
+
+    local configs = getgenv().Kynox.Configs
+    local hubCfg = cfg.CONFIG or cfg.Config or {}
+
+    local function notify(data)
+        if cfg.Notify then
+            cfg.Notify(data)
+        elseif Fluent then
+            Fluent:Notify(data)
+        end
+    end
+
+    if hubCfg.KeySystem and hubCfg.KeySystem.Enabled ~= false and cfg.SkipKey ~= true then
+        local keyOk = Kynox.runKeySystem(hubCfg.KeySystem, notify)
+        if not keyOk then
+            return nil, "key_cancelled"
+        end
+    end
+
+    local Window = Fluent:CreateWindow(Kynox.buildWindowOptions(hubCfg.Window))
+    Kynox.setupBranding(Window, hubCfg.Branding, Fluent)
+
+    local Tabs = {}
+    local tabList = hubCfg.Tabs or {}
+    for _, tab in ipairs(tabList) do
+        Tabs[tab.Id] = Window:AddTab({ Title = tab.Title, Icon = tab.Icon })
+    end
+
+    local GameConfig = Kynox.setupGameConfig({
+        Game = hubCfg.Game or cfg.Game or "Default",
+        Configs = configs,
+        Exclude = cfg.ConfigExclude,
+        LegacyPaths = cfg.LegacyPaths,
+        AfterLoad = cfg.AfterLoad,
+        AfterReset = cfg.AfterReset,
+        NotifyTitle = hubCfg.Window and hubCfg.Window.Title or "Kynox Hub",
+    }, notify)
+
+    getgenv().KynoxSaveConfig = GameConfig.SaveConfig
+    GameConfig.LoadConfig()
+
+    SaveManager:SetLibrary(Fluent)
+    InterfaceManager:SetLibrary(Fluent)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes(cfg.SaveIgnoreIndexes or { "ShowSessionTimer" })
+    InterfaceManager:SetFolder(Kynox.INTERFACE_FOLDER)
+
+    local SessionTimer = Kynox.createSessionTimer({
+        StartTime = cfg.SessionStart or tick(),
+        Visible = false,
+    })
+
+    if Tabs.Settings and cfg.SkipInterface ~= true then
+        InterfaceManager:BuildInterfaceSection(Tabs.Settings, {
+            onSessionTimerChanged = function(v)
+                SessionTimer.setVisible(v)
+            end,
+        })
+
+        if cfg.AutoResetButton ~= false then
+            local settingsConfig = Tabs.Settings:AddSection("Config")
+            settingsConfig:AddButton({
+                Title = "Reset config",
+                Description = "Restore defaults",
+                Callback = function()
+                    Window:Dialog({
+                        Title = "Reset config?",
+                        Content = "Overwrite:\n" .. GameConfig.Path,
+                        Buttons = {
+                            {
+                                Title = "Reset",
+                                Callback = function()
+                                    GameConfig.ResetConfig()
+                                end,
+                            },
+                            {
+                                Title = "Cancel",
+                                Callback = function() end,
+                            },
+                        },
+                    })
+                end,
+            })
+        end
+    end
+
+    Kynox.applyForcedInterfaceSettings(Fluent, InterfaceManager)
+
+    if cfg.SelectTab ~= false then
+        Window:SelectTab(1)
+    end
+
+    if cfg.SkipLoadedNotify ~= true then
+        notify({
+            Title = hubCfg.Window and hubCfg.Window.Title or "Kynox Hub",
+            Content = "Loaded.",
+            Duration = 5,
+        })
+    end
+
+    if hubCfg.Toggle and cfg.SkipToggle ~= true then
+        Kynox.createToggleGui(
+            cfg.ToggleParent or game:GetService("CoreGui"),
+            Window,
+            hubCfg.Toggle
+        )
+    end
+
+    if cfg.SkipPlatformLog ~= true then
+        print("[Kynox UI] Platform:", Kynox.detectPlatform())
+    end
+
+    local hub = {
+        Kynox = Kynox,
+        Fluent = Fluent,
+        SaveManager = SaveManager,
+        InterfaceManager = InterfaceManager,
+        Window = Window,
+        Tabs = Tabs,
+        Options = Fluent.Options,
+        CFG = configs,
+        Configs = configs,
+        GameConfig = GameConfig,
+        SessionTimer = SessionTimer,
+        Github = github,
+        notify = notify,
+        SaveConfig = GameConfig.SaveConfig,
+        LoadConfig = GameConfig.LoadConfig,
+        ResetConfig = GameConfig.ResetConfig,
+    }
+
+    if cfg.OnReady then
+        cfg.OnReady(hub)
+    end
+
+    return hub
 end
 
 return Kynox
