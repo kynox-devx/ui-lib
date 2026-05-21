@@ -1,13 +1,31 @@
 local httpService = game:GetService("HttpService")
 
 local InterfaceManager = {} do
-	InterfaceManager.Folder = "FluentSettings"
+	InterfaceManager.Folder = "KynoxConfigs/interface"
     InterfaceManager.Settings = {
         Theme = "Dark",
-        Acrylic = true,
-        Transparency = true,
-        MenuKeybind = "LeftControl"
+        Acrylic = false,
+        Transparency = false,
+        MenuKeybind = "LeftControl",
+        ShowSessionTimer = false,
     }
+
+    function InterfaceManager:ApplyForcedVisuals()
+        local Library = self.Library
+        if not Library then
+            return
+        end
+
+        self.Settings.Theme = "Dark"
+        self.Settings.Acrylic = false
+        self.Settings.Transparency = false
+
+        Library:SetTheme("Dark")
+        if Library.UseAcrylic then
+            Library:ToggleAcrylic(false)
+        end
+        Library:ToggleTransparency(false)
+    end
 
     function InterfaceManager:SetFolder(folder)
 		self.Folder = folder;
@@ -55,59 +73,44 @@ local InterfaceManager = {} do
         end
     end
 
-    function InterfaceManager:BuildInterfaceSection(tab)
+    function InterfaceManager:BuildInterfaceSection(tab, opts)
+        opts = opts or {}
         assert(self.Library, "Must set InterfaceManager.Library")
-		local Library = self.Library
+        local Library = self.Library
         local Settings = InterfaceManager.Settings
 
         InterfaceManager:LoadSettings()
+        InterfaceManager:ApplyForcedVisuals()
 
-		local section = tab:AddSection("Interface")
+        Settings.ShowSessionTimer = Settings.ShowSessionTimer == true
 
-		local InterfaceTheme = section:AddDropdown("InterfaceTheme", {
-			Title = "Theme",
-			Description = "Changes the interface theme.",
-			Values = Library.Themes,
-			Default = Settings.Theme,
-			Callback = function(Value)
-				Library:SetTheme(Value)
-                Settings.Theme = Value
-                InterfaceManager:SaveSettings()
-			end
-		})
+        local section = tab:AddSection("Interface")
 
-        InterfaceTheme:SetValue(Settings.Theme)
-	
-		if Library.UseAcrylic then
-			section:AddToggle("AcrylicToggle", {
-				Title = "Acrylic",
-				Description = "The blurred background requires graphic quality 8+",
-				Default = Settings.Acrylic,
-				Callback = function(Value)
-					Library:ToggleAcrylic(Value)
-                    Settings.Acrylic = Value
-                    InterfaceManager:SaveSettings()
-				end
-			})
-		end
-	
-		section:AddToggle("TransparentToggle", {
-			Title = "Transparency",
-			Description = "Makes the interface transparent.",
-			Default = Settings.Transparency,
-			Callback = function(Value)
-				Library:ToggleTransparency(Value)
-				Settings.Transparency = Value
-                InterfaceManager:SaveSettings()
-			end
-		})
-	
-		local MenuKeybind = section:AddKeybind("MenuKeybind", { Title = "Minimize Bind", Default = Settings.MenuKeybind })
-		MenuKeybind:OnChanged(function()
-			Settings.MenuKeybind = MenuKeybind.Value
+        local MenuKeybind = section:AddKeybind("MenuKeybind", { Title = "Minimize Bind", Default = Settings.MenuKeybind })
+        MenuKeybind:OnChanged(function()
+            Settings.MenuKeybind = MenuKeybind.Value
             InterfaceManager:SaveSettings()
-		end)
-		Library.MinimizeKeybind = MenuKeybind
+        end)
+        Library.MinimizeKeybind = MenuKeybind
+
+        local overlay = tab:AddSection("Overlay")
+        local timerToggle = overlay:AddToggle("ShowSessionTimer", {
+            Title = "Session timer",
+            Description = "HH:MM:SS bar",
+            Default = Settings.ShowSessionTimer,
+            Callback = function(v)
+                Settings.ShowSessionTimer = v
+                InterfaceManager:SaveSettings()
+                if opts.onSessionTimerChanged then
+                    opts.onSessionTimerChanged(v)
+                end
+            end,
+        })
+        timerToggle:SetValue(Settings.ShowSessionTimer)
+
+        if opts.onSessionTimerChanged then
+            opts.onSessionTimerChanged(Settings.ShowSessionTimer)
+        end
     end
 end
 

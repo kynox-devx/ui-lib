@@ -133,7 +133,7 @@ local aa = {
             DialogOpen = false,
             UseAcrylic = false,
             Acrylic = false,
-            Transparency = true,
+            Transparency = false,
             MinimizeKeybind = nil,
             MinimizeKey = Enum.KeyCode.LeftControl,
             GUI = w
@@ -406,7 +406,7 @@ local aa = {
                     j(
                         "Frame",
                         {
-                            BackgroundTransparency = 0.45,
+                            BackgroundTransparency = 0,
                             Size = UDim2.fromScale(1, 1),
                             Name = "Background",
                             ThemeTag = {BackgroundColor3 = "AcrylicMain"}
@@ -417,7 +417,7 @@ local aa = {
                         "Frame",
                         {
                             BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                            BackgroundTransparency = 0.4,
+                            BackgroundTransparency = 0.55,
                             Size = UDim2.fromScale(1, 1)
                         },
                         {
@@ -756,6 +756,7 @@ local aa = {
                 k(
                 "TextLabel",
                 {
+                    RichText = true,
                     FontFace = Font.new(
                         "rbxasset://fonts/families/GothamSSm.json",
                         Enum.FontWeight.Medium,
@@ -775,6 +776,7 @@ local aa = {
                 k(
                 "TextLabel",
                 {
+                    RichText = true,
                     FontFace = Font.new "rbxasset://fonts/families/GothamSSm.json",
                     Text = n,
                     TextColor3 = Color3.fromRGB(200, 200, 200),
@@ -1308,14 +1310,14 @@ local aa = {
             r.SelectorPosMotor:setGoal(l(o:GetCurrentTabPos(), {frequency = 6}))
             task.spawn(
                 function()
-                    r.ContainerPosMotor:setGoal(l(110, {frequency = 10}))
+                    r.ContainerPosMotor:setGoal(l(100, {frequency = 10}))
                     r.ContainerBackMotor:setGoal(l(1, {frequency = 10}))
                     task.wait(0.15)
                     for u, v in next, o.Containers do
                         v.Visible = false
                     end
                     o.Containers[q].Visible = true
-                    r.ContainerPosMotor:setGoal(l(94, {frequency = 5}))
+                    r.ContainerPosMotor:setGoal(l(84, {frequency = 5}))
                     r.ContainerBackMotor:setGoal(l(0, {frequency = 8}))
                 end
             )
@@ -1536,7 +1538,7 @@ local aa = {
                                         Enum.FontWeight.Bold,
                                         Enum.FontStyle.Normal
                                     ),
-                                    TextSize = 17,
+                                    TextSize = 15,
                                     TextXAlignment = "Left",
                                     TextYAlignment = "Center",
                                     Size = UDim2.fromScale(0, 1),
@@ -1556,7 +1558,7 @@ local aa = {
                                         Enum.FontWeight.Regular,
                                         Enum.FontStyle.Normal
                                     ),
-                                    TextSize = 13,
+                                    TextSize = 12,
                                     TextXAlignment = "Left",
                                     TextYAlignment = "Center",
                                     Size = UDim2.fromScale(0, 1),
@@ -1689,11 +1691,11 @@ local aa = {
                     Text = "Tab",
                     TextTransparency = 0,
                     FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-                    TextSize = 28,
+                    TextSize = 20,
                     TextXAlignment = "Left",
                     TextYAlignment = "Center",
-                    Size = UDim2.new(1, -16, 0, 28),
-                    Position = UDim2.fromOffset(t.TabWidth + 26, 56),
+                    Size = UDim2.new(1, -16, 0, 24),
+                    Position = UDim2.fromOffset(t.TabWidth + 26, 54),
                     BackgroundTransparency = 1,
                     ThemeTag = {TextColor3 = "Text"}
                 }
@@ -1702,8 +1704,8 @@ local aa = {
                 s(
                 "CanvasGroup",
                 {
-                    Size = UDim2.new(1, -t.TabWidth - 32, 1, -102),
-                    Position = UDim2.fromOffset(t.TabWidth + 26, 90),
+                    Size = UDim2.new(1, -t.TabWidth - 32, 1, -96),
+                    Position = UDim2.fromOffset(t.TabWidth + 26, 84),
                     BackgroundTransparency = 1
                 }
             )
@@ -1723,7 +1725,7 @@ local aa = {
             v.SelectorPosMotor = l.SingleMotor.new(17)
             v.SelectorSizeMotor = l.SingleMotor.new(0)
             v.ContainerBackMotor = l.SingleMotor.new(0)
-            v.ContainerPosMotor = l.SingleMotor.new(94)
+            v.ContainerPosMotor = l.SingleMotor.new(84)
             G:onStep(
                 function(I)
                     v.Root.Size = UDim2.new(0, I.X, 0, I.Y)
@@ -3338,6 +3340,53 @@ local aa = {
             local e = ac(ag.Element)(d.Title, d.Content, aj.Container, false)
             e.Frame.BackgroundTransparency = 0.92
             e.Border.Transparency = 0.6
+            if d.Icon then
+                local image = d.Icon
+                local lib = c and c.Library
+                if lib and lib.GetIcon and type(image) == "string" and not image:find("rbxassetid") then
+                    local resolved = lib:GetIcon(image)
+                    if resolved then
+                        image = resolved
+                    end
+                end
+                if type(image) == "string" then
+                    image = "rbxassetid://" .. image:gsub("rbxassetid://", "")
+                end
+                local iconSize = d.IconSize or 26
+                local iconColor = d.IconColor or Color3.fromRGB(88, 101, 242)
+                local holder = e.LabelHolder
+                local title = e.TitleLabel
+                local desc = e.DescLabel
+                local oldLayout = holder:FindFirstChildOfClass("UIListLayout")
+                if oldLayout then
+                    oldLayout:Destroy()
+                end
+                local textCol = Instance.new("Frame")
+                textCol.Name = "TextColumn"
+                textCol.BackgroundTransparency = 1
+                textCol.AutomaticSize = Enum.AutomaticSize.Y
+                textCol.Size = UDim2.new(1, -(iconSize + 10), 0, 0)
+                textCol.LayoutOrder = 1
+                title.Parent = textCol
+                desc.Parent = textCol
+                Instance.new("UIListLayout", textCol).SortOrder = Enum.SortOrder.LayoutOrder
+                local rowLayout = Instance.new("UIListLayout")
+                rowLayout.FillDirection = Enum.FillDirection.Horizontal
+                rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+                rowLayout.Padding = UDim.new(0, 10)
+                rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                rowLayout.Parent = holder
+                local icon = Instance.new("ImageLabel")
+                icon.Name = "Icon"
+                icon.LayoutOrder = 0
+                icon.Image = image
+                icon.ImageColor3 = iconColor
+                icon.BackgroundTransparency = 1
+                icon.ScaleType = Enum.ScaleType.Fit
+                icon.Size = UDim2.fromOffset(iconSize, iconSize)
+                icon.Parent = holder
+                textCol.Parent = holder
+            end
             return e
         end
         return aj
@@ -5156,38 +5205,38 @@ local aa = {
         return {
             Name = "Dark",
             Accent = Color3.fromRGB(96, 205, 255),
-            AcrylicMain = Color3.fromRGB(60, 60, 60),
-            AcrylicBorder = Color3.fromRGB(90, 90, 90),
-            AcrylicGradient = ColorSequence.new(Color3.fromRGB(40, 40, 40), Color3.fromRGB(40, 40, 40)),
-            AcrylicNoise = 0.9,
-            TitleBarLine = Color3.fromRGB(75, 75, 75),
-            Tab = Color3.fromRGB(120, 120, 120),
-            Element = Color3.fromRGB(120, 120, 120),
-            ElementBorder = Color3.fromRGB(35, 35, 35),
-            InElementBorder = Color3.fromRGB(90, 90, 90),
-            ElementTransparency = 0.87,
-            ToggleSlider = Color3.fromRGB(120, 120, 120),
+            AcrylicMain = Color3.fromRGB(16, 16, 18),
+            AcrylicBorder = Color3.fromRGB(38, 38, 42),
+            AcrylicGradient = ColorSequence.new(Color3.fromRGB(12, 12, 14), Color3.fromRGB(8, 8, 10)),
+            AcrylicNoise = 0.94,
+            TitleBarLine = Color3.fromRGB(28, 28, 30),
+            Tab = Color3.fromRGB(52, 52, 56),
+            Element = Color3.fromRGB(46, 46, 50),
+            ElementBorder = Color3.fromRGB(12, 12, 14),
+            InElementBorder = Color3.fromRGB(36, 36, 40),
+            ElementTransparency = 0.82,
+            ToggleSlider = Color3.fromRGB(46, 46, 50),
             ToggleToggled = Color3.fromRGB(0, 0, 0),
-            SliderRail = Color3.fromRGB(120, 120, 120),
-            DropdownFrame = Color3.fromRGB(160, 160, 160),
-            DropdownHolder = Color3.fromRGB(45, 45, 45),
-            DropdownBorder = Color3.fromRGB(35, 35, 35),
-            DropdownOption = Color3.fromRGB(120, 120, 120),
-            Keybind = Color3.fromRGB(120, 120, 120),
-            Input = Color3.fromRGB(160, 160, 160),
-            InputFocused = Color3.fromRGB(10, 10, 10),
-            InputIndicator = Color3.fromRGB(150, 150, 150),
-            Dialog = Color3.fromRGB(45, 45, 45),
-            DialogHolder = Color3.fromRGB(35, 35, 35),
-            DialogHolderLine = Color3.fromRGB(30, 30, 30),
-            DialogButton = Color3.fromRGB(45, 45, 45),
-            DialogButtonBorder = Color3.fromRGB(80, 80, 80),
-            DialogBorder = Color3.fromRGB(70, 70, 70),
-            DialogInput = Color3.fromRGB(55, 55, 55),
-            DialogInputLine = Color3.fromRGB(160, 160, 160),
-            Text = Color3.fromRGB(240, 240, 240),
-            SubText = Color3.fromRGB(170, 170, 170),
-            Hover = Color3.fromRGB(120, 120, 120),
+            SliderRail = Color3.fromRGB(46, 46, 50),
+            DropdownFrame = Color3.fromRGB(90, 90, 94),
+            DropdownHolder = Color3.fromRGB(14, 14, 16),
+            DropdownBorder = Color3.fromRGB(12, 12, 14),
+            DropdownOption = Color3.fromRGB(46, 46, 50),
+            Keybind = Color3.fromRGB(46, 46, 50),
+            Input = Color3.fromRGB(90, 90, 94),
+            InputFocused = Color3.fromRGB(6, 6, 8),
+            InputIndicator = Color3.fromRGB(80, 80, 84),
+            Dialog = Color3.fromRGB(14, 14, 16),
+            DialogHolder = Color3.fromRGB(10, 10, 12),
+            DialogHolderLine = Color3.fromRGB(8, 8, 10),
+            DialogButton = Color3.fromRGB(14, 14, 16),
+            DialogButtonBorder = Color3.fromRGB(38, 38, 42),
+            DialogBorder = Color3.fromRGB(32, 32, 36),
+            DialogInput = Color3.fromRGB(20, 20, 22),
+            DialogInputLine = Color3.fromRGB(90, 90, 94),
+            Text = Color3.fromRGB(235, 235, 238),
+            SubText = Color3.fromRGB(125, 125, 132),
+            Hover = Color3.fromRGB(52, 52, 56),
             HoverChange = 0.07
         }
     end,
