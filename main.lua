@@ -760,6 +760,23 @@ local aa = {
         local h = d.Parent.Parent
         local i, j = e(h.Packages.Flipper), e(h.Creator)
         local k, l = j.New, i.Spring.new
+        local function formatBulletText(text)
+            if type(text) ~= "string" or text == "" then
+                return text or ""
+            end
+            if text:match("^%s*%-%s") then
+                return text
+            end
+            local openFont, inner, closeFont = text:match("^(<font[^>]*>)(.*)(</font>%s*)$")
+            if openFont and inner and not inner:find("<", 1, true) then
+                inner = inner:match("^%s*(.*)$") or inner
+                return openFont .. "- " .. inner .. closeFont
+            end
+            if text:match("^%s*<") then
+                return text
+            end
+            return "- " .. (text:match("^%s*(.*)$") or text)
+        end
         return function(m, n, o, p)
             local q = {}
             q.TitleLabel =
@@ -869,6 +886,7 @@ local aa = {
                 if s == nil then
                     s = ""
                 end
+                s = formatBulletText(s)
                 if s == "" then
                     q.DescLabel.Visible = false
                 else
@@ -3381,11 +3399,37 @@ local aa = {
         aj.__index = aj
         aj.__type = "Paragraph"
         function aj.New(c, d)
-            assert(d.Title, "Paragraph - Missing Title")
+            local callout = d.Callout
+            if not callout then
+                assert(d.Title, "Paragraph - Missing Title")
+            end
+            d.Title = d.Title or ""
             d.Content = d.Content or ""
             local e = ac(ag.Element)(d.Title, d.Content, aj.Container, false)
             e.Frame.BackgroundTransparency = 0.92
             e.Border.Transparency = 0.6
+            if callout then
+                local accent = d.AccentColor or Color3.fromRGB(237, 66, 69)
+                local bg = d.BackgroundColor or accent
+                local bgTrans = d.BackgroundTransparency or 0.86
+                e.TitleLabel.Visible = false
+                e.TitleLabel.Size = UDim2.new(1, 0, 0, 0)
+                e.Frame.BackgroundColor3 = bg
+                e.Frame.BackgroundTransparency = bgTrans
+                e.Border.Color = accent
+                e.Border.Transparency = 0.72
+                local accentBar = Instance.new("Frame")
+                accentBar.Name = "CalloutAccent"
+                accentBar.BackgroundColor3 = accent
+                accentBar.BorderSizePixel = 0
+                accentBar.Size = UDim2.new(0, 4, 1, 0)
+                accentBar.ZIndex = e.Frame.ZIndex + 2
+                accentBar.Parent = e.Frame
+                e.LabelHolder.Position = UDim2.fromOffset(12, 0)
+                e.LabelHolder.Size = UDim2.new(1, -24, 0, 0)
+                e.DescLabel.LineHeight = 1.15
+                e.DescLabel.TextSize = 13
+            end
             if d.Icon then
                 local image = d.Icon
                 local lib = c and c.Library
@@ -3418,7 +3462,7 @@ local aa = {
                 Instance.new("UIListLayout", textCol).SortOrder = Enum.SortOrder.LayoutOrder
                 local rowLayout = Instance.new("UIListLayout")
                 rowLayout.FillDirection = Enum.FillDirection.Horizontal
-                rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+                rowLayout.VerticalAlignment = Enum.VerticalAlignment.Top
                 rowLayout.Padding = UDim.new(0, 10)
                 rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
                 rowLayout.Parent = holder
@@ -3430,7 +3474,22 @@ local aa = {
                 icon.BackgroundTransparency = 1
                 icon.ScaleType = Enum.ScaleType.Fit
                 icon.Size = UDim2.fromOffset(iconSize, iconSize)
-                icon.Parent = holder
+                if callout then
+                    local badge = Instance.new("Frame")
+                    badge.Name = "IconBadge"
+                    badge.LayoutOrder = 0
+                    badge.Size = UDim2.fromOffset(iconSize + 8, iconSize + 8)
+                    badge.BackgroundColor3 = d.IconBadgeColor or d.AccentColor or iconColor
+                    badge.BackgroundTransparency = d.IconBadgeTransparency or 0.78
+                    badge.BorderSizePixel = 0
+                    Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
+                    icon.AnchorPoint = Vector2.new(0.5, 0.5)
+                    icon.Position = UDim2.fromScale(0.5, 0.5)
+                    icon.Parent = badge
+                    badge.Parent = holder
+                else
+                    icon.Parent = holder
+                end
                 textCol.Parent = holder
             end
             return e

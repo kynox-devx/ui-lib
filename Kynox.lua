@@ -145,6 +145,37 @@ function Kynox.patchFluentMainSource(src)
             1
         )
     end
+    if not src:find("formatBulletText", 1, true) then
+        src = src:gsub(
+            "return function%(m, n, o, p%)\n            local q = {}\n            q%.TitleLabel =",
+            [[local function formatBulletText(text)
+            if type(text) ~= "string" or text == "" then
+                return text or ""
+            end
+            if text:match("^%s*%-%s") then
+                return text
+            end
+            local openFont, inner, closeFont = text:match("^(<font[^>]*>)(.*)(</font>%s*)$")
+            if openFont and inner and not inner:find("<", 1, true) then
+                inner = inner:match("^%s*(.*)$") or inner
+                return openFont .. "- " .. inner .. closeFont
+            end
+            if text:match("^%s*<") then
+                return text
+            end
+            return "- " .. (text:match("^%s*(.*)$") or text)
+        end
+        return function(m, n, o, p)
+            local q = {}
+            q.TitleLabel =]],
+            1
+        )
+        src = src:gsub(
+            "function q%.SetDesc%(r, s%)\n                if s == nil then\n                    s = \"\"\n                end\n                if s == \"\" then",
+            "function q.SetDesc(r, s)\n                if s == nil then\n                    s = \"\"\n                end\n                s = formatBulletText(s)\n                if s == \"\" then",
+            1
+        )
+    end
     return src
 end
 
@@ -186,15 +217,87 @@ function Kynox.rawHttpRequest(opts)
     return nil
 end
 
-function Kynox.openDiscordInvite(inviteUrl, notify)
-    if setclipboard then
-        setclipboard(inviteUrl)
+function Kynox.normalizeHttpUrl(url)
+    if type(url) ~= "string" or url == "" then
+        return nil
+    end
+    url = url:match("^%s*(.-)%s*$")
+    if url == "" then
+        return nil
+    end
+    if not url:find("^https?://", 1) then
+        url = "https://" .. url:gsub("^//", "")
+    end
+    return url
+end
+
+function Kynox.openBrowserUrl(url)
+    url = Kynox.normalizeHttpUrl(url)
+    if not url then
+        return false
     end
 
-    local code = string.match(inviteUrl, "discord%.com/invite/(%w+)")
-        or string.match(inviteUrl, "discord%.gg/(%w+)")
+    local function tryCall(fn)
+        if type(fn) ~= "function" then
+            return false
+        end
+        local ok = pcall(fn)
+        return ok == true or ok == nil
+    end
 
-    if code and Kynox.rawHttpRequest({
+    if tryCall(function()
+        if type(openurl) == "function" then
+            openurl(url)
+        end
+    end) then
+        return true
+    end
+    if tryCall(function()
+        if type(OpenURL) == "function" then
+            OpenURL(url)
+        end
+    end) then
+        return true
+    end
+    if syn and tryCall(function()
+        syn.open_url(url)
+    end) then
+        return true
+    end
+    if fluxus and tryCall(function()
+        fluxus.open_url(url)
+    end) then
+        return true
+    end
+    if Krnl and tryCall(function()
+        if type(Krnl.open_url) == "function" then
+            Krnl.open_url(url)
+        elseif type(Krnl.OpenURL) == "function" then
+            Krnl.OpenURL(url)
+        end
+    end) then
+        return true
+    end
+    if http and tryCall(function()
+        if type(http.open) == "function" then
+            http.open(url)
+        end
+    end) then
+        return true
+    end
+
+    return tryCall(function()
+        game:GetService("StarterGui"):SetCore("OpenBrowserWindow", url)
+    end)
+end
+
+function Kynox.openDiscordDesktopInvite(inviteUrl)
+    local code = string.match(inviteUrl or "", "discord%.com/invite/([%w%-]+)")
+        or string.match(inviteUrl or "", "discord%.gg/([%w%-]+)")
+    if not code then
+        return false
+    end
+    local resp = Kynox.rawHttpRequest({
         Url = "http://127.0.0.1:6463/rpc?v=1",
         Method = "POST",
         Headers = {
@@ -206,32 +309,115 @@ function Kynox.openDiscordInvite(inviteUrl, notify)
             args = { code = code },
             nonce = HttpService:GenerateGUID(false),
         }),
-    }) then
-        if notify then
-            notify({
-                Title = "Discord",
-                Content = "Copied link & opening Discord...",
-                Duration = 4,
-            })
-        end
-        return
+    })
+    return resp ~= nil
+end
+
+function Kynox.openDiscordInvite(inviteUrl, notify)
+    inviteUrl = Kynox.normalizeHttpUrl(inviteUrl) or inviteUrl
+    if setclipboard and inviteUrl then
+        setclipboard(inviteUrl)
     end
 
+    local openedBrowser = Kynox.openBrowserUrl(inviteUrl)
+    local openedDesktop = (not openedBrowser) and Kynox.openDiscordDesktopInvite(inviteUrl)
+
     if notify then
-        notify({
-            Title = "Discord",
-            Content = "Copied! Open Discord manually: " .. inviteUrl,
-            Duration = 5,
-        })
+        if openedBrowser then
+            notify({
+                Title = "Discord",
+                Content = "Opening invite in your browser...",
+                Duration = 4,
+            })
+        elseif openedDesktop then
+            notify({
+                Title = "Discord",
+                Content = "Opening Discord app...",
+                Duration = 4,
+            })
+        else
+            notify({
+                Title = "Discord",
+                Content = "Link copied to clipboard. Paste in your browser: " .. tostring(inviteUrl),
+                Duration = 5,
+            })
+        end
+    end
+
+    return openedBrowser or openedDesktop
+end
+
+function Kynox.applyDiscordCallout(paragraph, opts)
+    opts = opts or {}
+    if not paragraph or not paragraph.Frame then
+        return
+    end
+    local accent = opts.AccentColor or Color3.fromRGB(237, 66, 69)
+    local bg = opts.BackgroundColor or accent
+    local bgTrans = opts.BackgroundTransparency or 0.86
+    paragraph.TitleLabel.Visible = false
+    paragraph.TitleLabel.Size = UDim2.new(1, 0, 0, 0)
+    local frame = paragraph.Frame
+    frame.BackgroundColor3 = bg
+    frame.BackgroundTransparency = bgTrans
+    if paragraph.Border then
+        paragraph.Border.Color = accent
+        paragraph.Border.Transparency = 0.72
+    end
+    local existing = frame:FindFirstChild("CalloutAccent")
+    if existing then
+        existing:Destroy()
+    end
+    local accentBar = Instance.new("Frame")
+    accentBar.Name = "CalloutAccent"
+    accentBar.BackgroundColor3 = accent
+    accentBar.BorderSizePixel = 0
+    accentBar.Size = UDim2.new(0, 4, 1, 0)
+    accentBar.ZIndex = frame.ZIndex + 2
+    accentBar.Parent = frame
+    local holder = paragraph.LabelHolder
+    if holder then
+        holder.Position = UDim2.fromOffset(12, 0)
+        holder.Size = UDim2.new(1, -24, 0, 0)
+        local icon = holder:FindFirstChild("Icon")
+        local iconSize = opts.IconSize or 22
+        if icon and icon:IsA("ImageLabel") and not holder:FindFirstChild("IconBadge") then
+            local badge = Instance.new("Frame")
+            badge.Name = "IconBadge"
+            badge.LayoutOrder = icon.LayoutOrder
+            badge.Size = UDim2.fromOffset(iconSize + 8, iconSize + 8)
+            badge.BackgroundColor3 = opts.IconBadgeColor or accent
+            badge.BackgroundTransparency = opts.IconBadgeTransparency or 0.78
+            badge.BorderSizePixel = 0
+            Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
+            icon.Parent = badge
+            icon.AnchorPoint = Vector2.new(0.5, 0.5)
+            icon.Position = UDim2.fromScale(0.5, 0.5)
+            icon.Size = UDim2.fromOffset(iconSize, iconSize)
+            icon.ImageColor3 = opts.IconColor or accent
+            badge.Parent = holder
+        end
+    end
+    if paragraph.DescLabel then
+        paragraph.DescLabel.LineHeight = 1.15
+        paragraph.DescLabel.TextSize = 13
     end
 end
 
 function Kynox.bindDiscordParagraph(paragraph, inviteUrl, notify)
-    if paragraph and paragraph.Frame then
-        paragraph.Frame.MouseButton1Click:Connect(function()
-            Kynox.openDiscordInvite(inviteUrl, notify)
-        end)
+    if not paragraph or not paragraph.Frame then
+        return
     end
+    local frame = paragraph.Frame
+    frame.Active = true
+    for _, child in ipairs(frame:GetDescendants()) do
+        if child:IsA("GuiObject") and child ~= frame then
+            child.Active = false
+        end
+    end
+    frame.MouseButton1Click:Connect(function()
+        Kynox.openDiscordInvite(inviteUrl, notify)
+    end)
 end
 
 function Kynox.getTitleBarHolder(titleBar)
@@ -246,11 +432,56 @@ function Kynox.getTitleBarHolder(titleBar)
     return nil
 end
 
-function Kynox.alignTitleBar(window)
+function Kynox.groupTitleBarLabels(holder)
+    if not holder or holder:FindFirstChild("TitleGroup") then
+        return holder and holder:FindFirstChild("TitleGroup")
+    end
+    local labels = {}
+    for _, child in ipairs(holder:GetChildren()) do
+        if child:IsA("TextLabel") then
+            table.insert(labels, child)
+        end
+    end
+    if #labels == 0 then
+        return nil
+    end
+    table.sort(labels, function(a, b)
+        return (a.TextTransparency or 0) < (b.TextTransparency or 0)
+    end)
+    local group = Instance.new("Frame")
+    group.Name = "TitleGroup"
+    group.BackgroundTransparency = 1
+    group.AutomaticSize = Enum.AutomaticSize.XY
+    group.Size = UDim2.fromScale(0, 0)
+    group.LayoutOrder = 1
+    local list = Instance.new("UIListLayout")
+    list.FillDirection = Enum.FillDirection.Horizontal
+    list.VerticalAlignment = Enum.VerticalAlignment.Center
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    list.Padding = UDim.new(0, 6)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Parent = group
+    for i, label in ipairs(labels) do
+        label.Parent = group
+        label.LayoutOrder = i
+    end
+    group.Parent = holder
+    return group
+end
+
+function Kynox.alignTitleBar(window, branding)
+    branding = branding or {}
     local holder = Kynox.getTitleBarHolder(window and window.TitleBar)
     if not holder then
         return
     end
+
+    Kynox.groupTitleBarLabels(holder)
+
+    local logoSize = branding.LogoSize or 24
+    local titleSize = branding.TitleSize or 15
+    local subTitleSize = branding.SubTitleSize or 12
+    local rowHeight = math.max(logoSize, titleSize + 2, subTitleSize + 4)
 
     local list = holder:FindFirstChildOfClass("UIListLayout")
     if list then
@@ -261,23 +492,32 @@ function Kynox.alignTitleBar(window)
         list.Padding = UDim.new(0, 8)
     end
 
+    local function styleTextLabel(label)
+        label.TextYAlignment = Enum.TextYAlignment.Center
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.AutomaticSize = Enum.AutomaticSize.X
+        label.Size = UDim2.new(0, 0, 0, rowHeight)
+    end
+
     for _, child in ipairs(holder:GetChildren()) do
-        if child:IsA("TextLabel") then
-            child.TextYAlignment = Enum.TextYAlignment.Center
-            child.AutomaticSize = Enum.AutomaticSize.XY
-            child.Size = UDim2.new(0, 0, 0, 0)
-        elseif child.Name == "LogoWrap" then
-            local side = child.Size.X.Offset
-            if side <= 0 then
-                side = 24
-            end
-            child.Size = UDim2.fromOffset(side, side)
+        if child.Name == "LogoWrap" then
+            child.Size = UDim2.fromOffset(logoSize, rowHeight)
             local logo = child:FindFirstChild("Logo")
             if logo and logo:IsA("ImageLabel") then
                 logo.AnchorPoint = Vector2.new(0.5, 0.5)
                 logo.Position = UDim2.fromScale(0.5, 0.5)
-                logo.Size = UDim2.fromOffset(side, side)
+                logo.Size = UDim2.fromOffset(logoSize, logoSize)
             end
+        elseif child.Name == "TitleGroup" then
+            child.Size = UDim2.new(0, 0, 0, rowHeight)
+            child.AutomaticSize = Enum.AutomaticSize.X
+            for _, label in ipairs(child:GetChildren()) do
+                if label:IsA("TextLabel") then
+                    styleTextLabel(label)
+                end
+            end
+        elseif child:IsA("TextLabel") then
+            styleTextLabel(child)
         end
     end
 end
@@ -339,14 +579,24 @@ function Kynox.setTitleBarFontSize(window, titleSize, subTitleSize)
 
     for _, label in ipairs(holder:GetChildren()) do
         if label:IsA("TextLabel") then
-            label.TextYAlignment = Enum.TextYAlignment.Center
-            label.AutomaticSize = Enum.AutomaticSize.XY
-            label.Size = UDim2.new(0, 0, 0, 0)
             if label.TextTransparency >= 0.3 then
                 label.TextSize = subTitleSize
             else
                 label.TextSize = titleSize
                 label.FontFace = titleFont
+            end
+        end
+    end
+    local titleGroup = holder:FindFirstChild("TitleGroup")
+    if titleGroup then
+        for _, label in ipairs(titleGroup:GetChildren()) do
+            if label:IsA("TextLabel") then
+                if label.TextTransparency >= 0.3 then
+                    label.TextSize = subTitleSize
+                else
+                    label.TextSize = titleSize
+                    label.FontFace = titleFont
+                end
             end
         end
     end
@@ -360,9 +610,9 @@ function Kynox.setupBranding(window, branding, fluent)
     if branding.TitleSize or branding.SubTitleSize then
         Kynox.setTitleBarFontSize(window, branding.TitleSize, branding.SubTitleSize)
     end
-    Kynox.alignTitleBar(window)
+    Kynox.alignTitleBar(window, branding)
     task.defer(function()
-        Kynox.alignTitleBar(window)
+        Kynox.alignTitleBar(window, branding)
     end)
     if fluent and branding.Transparency == false then
         fluent:ToggleTransparency(false)
