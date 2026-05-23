@@ -234,6 +234,54 @@ function Kynox.bindDiscordParagraph(paragraph, inviteUrl, notify)
     end
 end
 
+function Kynox.getTitleBarHolder(titleBar)
+    if not titleBar or not titleBar.Frame then
+        return nil
+    end
+    for _, child in ipairs(titleBar.Frame:GetChildren()) do
+        if child:IsA("Frame") and child:FindFirstChildOfClass("UIListLayout") then
+            return child
+        end
+    end
+    return nil
+end
+
+function Kynox.alignTitleBar(window)
+    local holder = Kynox.getTitleBarHolder(window and window.TitleBar)
+    if not holder then
+        return
+    end
+
+    local list = holder:FindFirstChildOfClass("UIListLayout")
+    if list then
+        list.FillDirection = Enum.FillDirection.Horizontal
+        list.VerticalAlignment = Enum.VerticalAlignment.Center
+        list.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        list.SortOrder = Enum.SortOrder.LayoutOrder
+        list.Padding = UDim.new(0, 8)
+    end
+
+    for _, child in ipairs(holder:GetChildren()) do
+        if child:IsA("TextLabel") then
+            child.TextYAlignment = Enum.TextYAlignment.Center
+            child.AutomaticSize = Enum.AutomaticSize.XY
+            child.Size = UDim2.new(0, 0, 0, 0)
+        elseif child.Name == "LogoWrap" then
+            local side = child.Size.X.Offset
+            if side <= 0 then
+                side = 24
+            end
+            child.Size = UDim2.fromOffset(side, side)
+            local logo = child:FindFirstChild("Logo")
+            if logo and logo:IsA("ImageLabel") then
+                logo.AnchorPoint = Vector2.new(0.5, 0.5)
+                logo.Position = UDim2.fromScale(0.5, 0.5)
+                logo.Size = UDim2.fromOffset(side, side)
+            end
+        end
+    end
+end
+
 function Kynox.addTitleBarLogo(window, imageId, size)
     size = size or 20
     local titleBar = window.TitleBar
@@ -241,27 +289,16 @@ function Kynox.addTitleBarLogo(window, imageId, size)
         return
     end
 
-    local holder
-    for _, child in ipairs(titleBar.Frame:GetChildren()) do
-        if child:IsA("Frame") and child:FindFirstChildOfClass("UIListLayout") then
-            holder = child
-            break
-        end
-    end
+    local holder = Kynox.getTitleBarHolder(titleBar)
     if not holder then
         return
-    end
-
-    local list = holder:FindFirstChildOfClass("UIListLayout")
-    if list then
-        list.VerticalAlignment = Enum.VerticalAlignment.Center
     end
 
     local id = tostring(imageId):gsub("rbxassetid://", "")
     local wrap = Instance.new("Frame")
     wrap.Name = "LogoWrap"
     wrap.LayoutOrder = 0
-    wrap.Size = UDim2.new(0, size, 1, 0)
+    wrap.Size = UDim2.fromOffset(size, size)
     wrap.BackgroundTransparency = 1
     wrap.Parent = holder
 
@@ -289,8 +326,8 @@ end
 function Kynox.setTitleBarFontSize(window, titleSize, subTitleSize)
     titleSize = titleSize or 15
     subTitleSize = subTitleSize or 12
-    local titleBar = window.TitleBar
-    if not titleBar then
+    local holder = Kynox.getTitleBarHolder(window and window.TitleBar)
+    if not holder then
         return
     end
 
@@ -300,19 +337,17 @@ function Kynox.setTitleBarFontSize(window, titleSize, subTitleSize)
         Enum.FontStyle.Normal
     )
 
-    for _, child in ipairs(titleBar.Frame:GetChildren()) do
-        if child:IsA("Frame") and child:FindFirstChildOfClass("UIListLayout") then
-            for _, label in ipairs(child:GetChildren()) do
-                if label:IsA("TextLabel") then
-                    if label.TextTransparency >= 0.3 then
-                        label.TextSize = subTitleSize
-                    else
-                        label.TextSize = titleSize
-                        label.FontFace = titleFont
-                    end
-                end
+    for _, label in ipairs(holder:GetChildren()) do
+        if label:IsA("TextLabel") then
+            label.TextYAlignment = Enum.TextYAlignment.Center
+            label.AutomaticSize = Enum.AutomaticSize.XY
+            label.Size = UDim2.new(0, 0, 0, 0)
+            if label.TextTransparency >= 0.3 then
+                label.TextSize = subTitleSize
+            else
+                label.TextSize = titleSize
+                label.FontFace = titleFont
             end
-            break
         end
     end
 end
@@ -325,6 +360,10 @@ function Kynox.setupBranding(window, branding, fluent)
     if branding.TitleSize or branding.SubTitleSize then
         Kynox.setTitleBarFontSize(window, branding.TitleSize, branding.SubTitleSize)
     end
+    Kynox.alignTitleBar(window)
+    task.defer(function()
+        Kynox.alignTitleBar(window)
+    end)
     if fluent and branding.Transparency == false then
         fluent:ToggleTransparency(false)
     end

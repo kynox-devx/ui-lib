@@ -1533,9 +1533,11 @@ local aa = {
                             l(
                                 "UIListLayout",
                                 {
-                                    Padding = UDim.new(0, 5),
+                                    Padding = UDim.new(0, 8),
                                     FillDirection = Enum.FillDirection.Horizontal,
-                                    SortOrder = Enum.SortOrder.LayoutOrder
+                                    SortOrder = Enum.SortOrder.LayoutOrder,
+                                    VerticalAlignment = Enum.VerticalAlignment.Center,
+                                    HorizontalAlignment = Enum.HorizontalAlignment.Left
                                 }
                             ),
                             l(
@@ -1551,8 +1553,8 @@ local aa = {
                                     TextSize = 15,
                                     TextXAlignment = "Left",
                                     TextYAlignment = "Center",
-                                    Size = UDim2.fromScale(0, 1),
-                                    AutomaticSize = Enum.AutomaticSize.X,
+                                    Size = UDim2.fromScale(0, 0),
+                                    AutomaticSize = Enum.AutomaticSize.XY,
                                     BackgroundTransparency = 1,
                                     ThemeTag = {TextColor3 = "Text"}
                                 }
@@ -1571,8 +1573,8 @@ local aa = {
                                     TextSize = 12,
                                     TextXAlignment = "Left",
                                     TextYAlignment = "Center",
-                                    Size = UDim2.fromScale(0, 1),
-                                    AutomaticSize = Enum.AutomaticSize.X,
+                                    Size = UDim2.fromScale(0, 0),
+                                    AutomaticSize = Enum.AutomaticSize.XY,
                                     BackgroundTransparency = 1,
                                     ThemeTag = {TextColor3 = "Text"}
                                 }
