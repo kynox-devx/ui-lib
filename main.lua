@@ -789,15 +789,28 @@ local aa = {
                     RichText = true,
                     FontFace = Font.new "rbxasset://fonts/families/GothamSSm.json",
                     Text = n,
-                    TextColor3 = Color3.fromRGB(200, 200, 200),
+                    TextColor3 = Color3.fromRGB(175, 178, 186),
                     TextSize = 12,
+                    TextTransparency = 0.08,
                     TextWrapped = true,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Top,
+                    LineHeight = 1.12,
                     BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
-                    Size = UDim2.new(1, 0, 0, 14),
+                    Size = UDim2.new(1, -12, 0, 0),
                     ThemeTag = {TextColor3 = "SubText"}
+                },
+                {
+                    k(
+                        "UIPadding",
+                        {
+                            PaddingLeft = UDim.new(0, 12),
+                            PaddingTop = UDim.new(0, 5),
+                            PaddingBottom = UDim.new(0, 2)
+                        }
+                    )
                 }
             )
             q.LabelHolder =
@@ -813,7 +826,11 @@ local aa = {
                 {
                     k(
                         "UIListLayout",
-                        {SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center}
+                        {
+                            SortOrder = Enum.SortOrder.LayoutOrder,
+                            VerticalAlignment = Enum.VerticalAlignment.Top,
+                            Padding = UDim.new(0, 4)
+                        }
                     ),
                     k("UIPadding", {PaddingBottom = UDim.new(0, 13), PaddingTop = UDim.new(0, 13)}),
                     q.TitleLabel,
