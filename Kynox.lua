@@ -43,8 +43,125 @@ function Kynox.guardDuplicate(coreGui)
     return false
 end
 
+function Kynox.patchFluentMainSource(src)
+    if not src or src:find("_KynoxFluentPatched", 1, true) then
+        return src
+    end
+    src = "-- _KynoxFluentPatched\n" .. src
+    -- ลด re-entrant UpdateTheme ตอนสร้าง UI (ช่วยกัน Plugin/capability error บาง executor)
+    src = src:gsub(
+        "k%.Registry%[m%] = p\n            k%.UpdateTheme%(%)",
+        [[k.Registry[m] = p
+            if not k._themeScheduled then
+                k._themeScheduled = true
+                task.defer(function()
+                    k._themeScheduled = false
+                    pcall(k.UpdateTheme)
+                end)
+            end]],
+        1
+    )
+    src = src:gsub(
+        "k%.Registry%[m%]%.Properties = n\n            k%.UpdateTheme%(%)",
+        [[k.Registry[m].Properties = n
+            if not k._themeScheduled then
+                k._themeScheduled = true
+                task.defer(function()
+                    k._themeScheduled = false
+                    pcall(k.UpdateTheme)
+                end)
+            end]],
+        1
+    )
+    src = src:gsub(
+        "function k%.New%(m, n, o%)\n            local p = Instance%.new%(m%)",
+        [[function k.New(m, n, o)
+            local instNew = (clonefunction and clonefunction(Instance.new)) or Instance.new
+            local p
+            local ok, inst = pcall(instNew, m)
+            p = ok and inst or instNew(m)]]
+    )
+    -- ปิด dropdown ลอยเมื่อพับ UI (popup parent = Library.GUI ไม่ใช่ Root)
+    if not src:find("CloseAllOpenFrames", 1, true) then
+        src = src:gsub(
+            "function x%.Destroy%(C%)",
+            [[function x.CloseAllOpenFrames(C)
+            for i = #C.OpenFrames, 1, -1 do
+                local entry = C.OpenFrames[i]
+                if type(entry) == "table" and type(entry.Close) == "function" and entry.Opened then
+                    entry:Close()
+                elseif typeof(entry) == "Instance" then
+                    entry.Visible = false
+                end
+            end
+        end
+        function x.Destroy(C)]],
+            1
+        )
+        src = src:gsub(
+            "function v%.Minimize%(M%)\n                v%.Minimized = not v%.Minimized\n                v%.Root%.Visible = not v%.Minimized",
+            [[function v.Minimize(M)
+                v.Minimized = not v.Minimized
+                v.Root.Visible = not v.Minimized
+                if v.Minimized then
+                    u:CloseAllOpenFrames()
+                end]],
+            1
+        )
+        src = src:gsub("table%.insert%(k%.OpenFrames, v%)\n", "", 1)
+        src = src:gsub(
+            "function l%.Open%(B%)\n                l%.Opened = true",
+            [[function l.Open(B)
+                if not table.find(k.OpenFrames, l) then
+                    table.insert(k.OpenFrames, l)
+                end
+                l.Opened = true]],
+            1
+        )
+        src = src:gsub(
+            "function l%.Close%(B%)\n                l%.Opened = false\n                A%.ScrollingEnabled = true",
+            [[function l.Close(B)
+                l.Opened = false
+                local idx = table.find(k.OpenFrames, l)
+                if idx then
+                    table.remove(k.OpenFrames, idx)
+                end
+                A.ScrollingEnabled = true]],
+            1
+        )
+        src = src:gsub(
+            "{v%.AcrylicPaint%.Frame, v%.TabDisplay, v%.ContainerHolder, F, E}\n            %)\n            v%.TitleBar =",
+            [[{v.AcrylicPaint.Frame, v.TabDisplay, v.ContainerHolder, F, E}
+            )
+            m.AddSignal(
+                v.Root:GetPropertyChangedSignal("Visible"),
+                function()
+                    if not v.Root.Visible then
+                        u:CloseAllOpenFrames()
+                    end
+                end
+            )
+            v.TitleBar =]],
+            1
+        )
+    end
+    return src
+end
+
+function Kynox.loadFluentMain(github)
+    github = github or Kynox.buildGithubUrls()
+    local url = github["main.lua"]
+    assert(url, "Unknown UI file: main.lua")
+    local src = game:HttpGet(url)
+    src = Kynox.patchFluentMainSource(src)
+    return loadstring(src)()
+end
+
 function Kynox.loadModule(fileName, github)
     github = github or {}
+    if fileName == "main.lua" then
+        return Kynox.loadFluentMain(github)
+    end
     local url = github[fileName]
     assert(url, "Unknown UI file: " .. tostring(fileName))
     return loadstring(game:HttpGet(url))()
@@ -335,7 +452,7 @@ function Kynox.loadInterfaceSettings()
         Acrylic = false,
         Transparency = false,
         MenuKeybind = "LeftControl",
-        ShowSessionTimer = false,
+        ShowSessionTimer = true,
     }
     if type(isfile) ~= "function" or type(readfile) ~= "function" then
         return defaults
@@ -352,8 +469,10 @@ function Kynox.loadInterfaceSettings()
         for k, v in pairs(decoded) do
             defaults[k] = v
         end
+        if decoded.ShowSessionTimer ~= nil then
+            defaults.ShowSessionTimer = decoded.ShowSessionTimer == true
+        end
     end
-    defaults.ShowSessionTimer = defaults.ShowSessionTimer == true
     return defaults
 end
 
@@ -478,13 +597,46 @@ local function sanitizeConfigTable(tbl, exclude)
         if not isExcludedKey(k, exclude) then
             local t = type(v)
             if t == "table" then
-                out[k] = sanitizeConfigTable(v, exclude)
-            elseif t == "boolean" or t == "number" or t == "string" then
+                if v.__color3 == true then
+                    out[k] = { __color3 = true, R = v.R, G = v.G, B = v.B }
+                else
+                    out[k] = sanitizeConfigTable(v, exclude)
+                end
+            elseif typeof(v) == "Color3" then
+                out[k] = { __color3 = true, R = v.R, G = v.G, B = v.B }
+            elseif t == "boolean" or t == "string" then
                 out[k] = v
+            elseif t == "number" then
+                if v == math.huge then
+                    out[k] = "__huge__"
+                elseif v == -math.huge then
+                    out[k] = "__neg_huge__"
+                else
+                    out[k] = v
+                end
             end
         end
     end
     return out
+end
+
+function Kynox.restoreConfigTable(tbl)
+    if type(tbl) ~= "table" then
+        return
+    end
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            if v.__color3 == true then
+                tbl[k] = Color3.new(tonumber(v.R) or 0, tonumber(v.G) or 0, tonumber(v.B) or 0)
+            else
+                Kynox.restoreConfigTable(v)
+            end
+        elseif v == "__huge__" then
+            tbl[k] = math.huge
+        elseif v == "__neg_huge__" then
+            tbl[k] = -math.huge
+        end
+    end
 end
 
 --[[
@@ -560,7 +712,9 @@ function Kynox.setupGameConfig(cfg, notify)
                 return HttpService:JSONDecode(readfile(path))
             end)
             if ok and type(decoded) == "table" then
+                Kynox.restoreConfigTable(decoded)
                 mergeGameConfig(configs, decoded)
+                Kynox.restoreConfigTable(configs)
                 if cfg.AfterLoad then
                     cfg.AfterLoad(decoded)
                 end
@@ -593,6 +747,7 @@ function Kynox.setupGameConfig(cfg, notify)
             configs[k] = nil
         end
         mergeGameConfig(configs, sanitizeConfigTable(defaultsSnapshot, exclude))
+        Kynox.restoreConfigTable(configs)
         SaveConfig()
         if cfg.AfterReset then
             cfg.AfterReset(configs)
@@ -1697,9 +1852,10 @@ function Kynox.initHub(cfg)
     SaveManager:SetIgnoreIndexes(cfg.SaveIgnoreIndexes or { "ShowSessionTimer" })
     InterfaceManager:SetFolder(Kynox.INTERFACE_FOLDER)
 
+    local interfaceSettings = Kynox.loadInterfaceSettings()
     local SessionTimer = Kynox.createSessionTimer({
         StartTime = cfg.SessionStart or tick(),
-        Visible = false,
+        Visible = interfaceSettings.ShowSessionTimer == true,
     })
 
     if Tabs.Settings and cfg.SkipInterface ~= true then

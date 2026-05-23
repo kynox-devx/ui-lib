@@ -218,6 +218,16 @@ local aa = {
                 x.GUI:Destroy()
             end
         end
+        function x.CloseAllOpenFrames(C)
+            for i = #C.OpenFrames, 1, -1 do
+                local entry = C.OpenFrames[i]
+                if type(entry) == "table" and type(entry.Close) == "function" and entry.Opened then
+                    entry:Close()
+                elseif typeof(entry) == "Instance" then
+                    entry.Visible = false
+                end
+            end
+        end
         function x.ToggleAcrylic(C, D)
             if x.Window then
                 if x.UseAcrylic then
@@ -1715,6 +1725,14 @@ local aa = {
                 {BackgroundTransparency = 1, Size = v.Size, Position = v.Position, Parent = t.Parent},
                 {v.AcrylicPaint.Frame, v.TabDisplay, v.ContainerHolder, F, E}
             )
+            m.AddSignal(
+                v.Root:GetPropertyChangedSignal("Visible"),
+                function()
+                    if not v.Root.Visible then
+                        u:CloseAllOpenFrames()
+                    end
+                end
+            )
             v.TitleBar = e(d.Parent.TitleBar) {Title = t.Title, SubTitle = t.SubTitle, Parent = v.Root, Window = v}
             if e(k).UseAcrylic then
                 v.AcrylicPaint.AddParent(v.Root)
@@ -1885,6 +1903,9 @@ local aa = {
             function v.Minimize(M)
                 v.Minimized = not v.Minimized
                 v.Root.Visible = not v.Minimized
+                if v.Minimized then
+                    u:CloseAllOpenFrames()
+                end
                 if not C then
                     C = true
                     local N = u.MinimizeKeybind and u.MinimizeKeybind.Value or u.MinimizeKey.Name
@@ -2766,7 +2787,6 @@ local aa = {
                 {BackgroundTransparency = 1, Size = UDim2.fromOffset(170, 300), Parent = h.Library.GUI, Visible = false},
                 {u, e("UISizeConstraint", {MinSize = Vector2.new(170, 0)})}
             )
-            table.insert(k.OpenFrames, v)
             local w, x = function()
                     local w = 0
                     if ai.ViewportSize.Y - p.AbsolutePosition.Y < v.AbsoluteSize.Y - 5 then
@@ -2805,6 +2825,9 @@ local aa = {
             )
             local A = h.ScrollFrame
             function l.Open(B)
+                if not table.find(k.OpenFrames, l) then
+                    table.insert(k.OpenFrames, l)
+                end
                 l.Opened = true
                 A.ScrollingEnabled = false
                 v.Visible = true
@@ -2816,6 +2839,10 @@ local aa = {
             end
             function l.Close(B)
                 l.Opened = false
+                local idx = table.find(k.OpenFrames, l)
+                if idx then
+                    table.remove(k.OpenFrames, idx)
+                end
                 A.ScrollingEnabled = true
                 u.Size = UDim2.fromScale(1, 0.6)
                 v.Visible = false

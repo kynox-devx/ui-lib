@@ -7,7 +7,7 @@ local InterfaceManager = {} do
         Acrylic = false,
         Transparency = false,
         MenuKeybind = "LeftControl",
-        ShowSessionTimer = false,
+        ShowSessionTimer = true,
     }
 
     function InterfaceManager:ApplyForcedVisuals()
@@ -96,7 +96,7 @@ local InterfaceManager = {} do
         local overlay = tab:AddSection("Overlay")
         local timerToggle = overlay:AddToggle("ShowSessionTimer", {
             Title = "Session timer",
-            Description = "HH:MM:SS bar",
+            Description = "Show how long you've been in this session at the top of the screen (hours, minutes, seconds).",
             Default = Settings.ShowSessionTimer,
             Callback = function(v)
                 Settings.ShowSessionTimer = v
