@@ -12,6 +12,17 @@ local RunService = game:GetService("RunService")
 
 local Kynox = {}
 
+local KynoxInstanceNew
+do
+    local ok, instNew = pcall(function()
+        return (clonefunction and clonefunction(Instance.new)) or Instance.new
+    end)
+    KynoxInstanceNew = ok and instNew or nil
+    if getgenv and not getgenv()._KynoxInstanceNew then
+        getgenv()._KynoxInstanceNew = KynoxInstanceNew
+    end
+end
+
 function Kynox.detectPlatform()
     if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
         return "Mobile/Tablet"
@@ -76,10 +87,35 @@ function Kynox.patchFluentMainSource(src)
     src = src:gsub(
         "function k%.New%(m, n, o%)\n            local p = Instance%.new%(m%)",
         [[function k.New(m, n, o)
-            local instNew = (clonefunction and clonefunction(Instance.new)) or Instance.new
-            local p
-            local ok, inst = pcall(instNew, m)
-            p = ok and inst or instNew(m)]]
+            local instNew = (getgenv and getgenv()._KynoxInstanceNew) or ((clonefunction and clonefunction(Instance.new)) or Instance.new)
+            local p = instNew(m)]]
+    )
+    src = src:gsub(
+        "p = ok and inst or instNew%(m%)",
+        [[if not ok then
+                error(inst)
+            end
+            p = inst]],
+        1
+    )
+    src = src:gsub(
+        "h:SetValue%(h%.Value%)\n            g%.Options%[e%] = h",
+        [[local initialCallback = h.Callback
+            local initialChanged = h.Changed
+            h.Callback = function()
+            end
+            h.Changed = nil
+            h:SetValue(h.Value)
+            h.Callback = initialCallback
+            h.Changed = initialChanged
+            g.Options[e] = h]],
+        1
+    )
+    src = src:gsub(
+        "local w = u%(\"ScreenGui\", {Parent = i:IsStudio%(%) and j%.PlayerGui or game:GetService \"CoreGui\"}%)",
+        [[local guiParent = (type(gethui) == "function" and gethui()) or j:FindFirstChildOfClass("PlayerGui") or game:GetService "CoreGui"
+        local w = u("ScreenGui", {Parent = i:IsStudio() and j.PlayerGui or guiParent})]],
+        1
     )
     -- ปิด dropdown ลอยเมื่อพับ UI (popup parent = Library.GUI ไม่ใช่ Root)
     if not src:find("CloseAllOpenFrames", 1, true) then
