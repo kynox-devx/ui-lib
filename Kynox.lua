@@ -2283,7 +2283,7 @@ function Kynox.initHub(cfg)
     end
 
     if cfg.SkipPlatformLog ~= true then
-        print("[Kynox UI] Platform:", Kynox.detectPlatform())
+        --print("[Kynox UI] Platform:", Kynox.detectPlatform())
     end
 
     local hub = {
