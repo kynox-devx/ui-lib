@@ -1249,10 +1249,11 @@ local aa = {
                     k(
                         "ImageLabel",
                         {
-                            AnchorPoint = Vector2.new(0, 0.5),
-                            Size = UDim2.fromOffset(16, 16),
-                            Position = UDim2.new(0, 8, 0.5, 0),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Size = UDim2.fromOffset(14, 14),
+                            Position = UDim2.new(0, 16, 0.5, 0),
                             BackgroundTransparency = 1,
+                            ScaleType = Enum.ScaleType.Fit,
                             Image = r and r or nil,
                             ThemeTag = {ImageColor3 = "Text"}
                         }
@@ -3462,7 +3463,7 @@ local aa = {
                 Instance.new("UIListLayout", textCol).SortOrder = Enum.SortOrder.LayoutOrder
                 local rowLayout = Instance.new("UIListLayout")
                 rowLayout.FillDirection = Enum.FillDirection.Horizontal
-                rowLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+                rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
                 rowLayout.Padding = UDim.new(0, 10)
                 rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
                 rowLayout.Parent = holder
@@ -3483,8 +3484,10 @@ local aa = {
                     badge.BackgroundTransparency = d.IconBadgeTransparency or 0.78
                     badge.BorderSizePixel = 0
                     Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
+                    local innerIconSize = math.max(12, math.floor(iconSize * 0.72))
                     icon.AnchorPoint = Vector2.new(0.5, 0.5)
                     icon.Position = UDim2.fromScale(0.5, 0.5)
+                    icon.Size = UDim2.fromOffset(innerIconSize, innerIconSize)
                     icon.Parent = badge
                     badge.Parent = holder
                 else

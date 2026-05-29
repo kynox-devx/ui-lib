@@ -383,6 +383,40 @@ function Kynox.openDiscordInvite(inviteUrl, notify)
     return openedBrowser or openedDesktop
 end
 
+function Kynox.fixParagraphIconAlignment(paragraph)
+    if not paragraph then
+        return
+    end
+    local holder = paragraph.LabelHolder
+    if not holder then
+        return
+    end
+    for _, child in ipairs(holder:GetChildren()) do
+        if child:IsA("UIListLayout") and child.FillDirection == Enum.FillDirection.Horizontal then
+            child.VerticalAlignment = Enum.VerticalAlignment.Center
+        end
+    end
+    local badge = holder:FindFirstChild("IconBadge")
+    local icon = badge and badge:FindFirstChild("Icon")
+    if not icon or not icon:IsA("ImageLabel") then
+        icon = holder:FindFirstChild("Icon")
+    end
+    if not icon or not icon:IsA("ImageLabel") then
+        return
+    end
+    icon.AnchorPoint = Vector2.new(0.5, 0.5)
+    icon.Position = UDim2.fromScale(0.5, 0.5)
+    icon.ScaleType = Enum.ScaleType.Fit
+    if badge then
+        local badgeSize = badge.Size.X.Offset
+        if badgeSize <= 0 then
+            badgeSize = 34
+        end
+        local inner = math.max(12, math.floor(badgeSize * 0.68))
+        icon.Size = UDim2.fromOffset(inner, inner)
+    end
+end
+
 function Kynox.applyDiscordCallout(paragraph, opts)
     opts = opts or {}
     if not paragraph or not paragraph.Frame then
@@ -427,11 +461,9 @@ function Kynox.applyDiscordCallout(paragraph, opts)
             badge.BorderSizePixel = 0
             Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
             icon.Parent = badge
-            icon.AnchorPoint = Vector2.new(0.5, 0.5)
-            icon.Position = UDim2.fromScale(0.5, 0.5)
-            icon.Size = UDim2.fromOffset(iconSize, iconSize)
             icon.ImageColor3 = opts.IconColor or accent
             badge.Parent = holder
+            Kynox.fixParagraphIconAlignment(paragraph)
         end
     end
     if paragraph.DescLabel then
@@ -675,14 +707,25 @@ function Kynox.createToggleGui(parent, window, toggle)
 
     local toggleButton = Instance.new("ImageButton")
     toggleButton.Name = "ToggleButton"
-    toggleButton.Image = toggle.Image or "rbxassetid://78756412031557"
-    toggleButton.ScaleType = Enum.ScaleType.Fit
+    toggleButton.Image = ""
     toggleButton.Size = UDim2.fromOffset(toggle.Size or 50, toggle.Size or 50)
     toggleButton.Position = toggle.Position or UDim2.new(0.06, 0, 0.08, 0)
     toggleButton.BorderSizePixel = 0
     toggleButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     toggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
     toggleButton.Parent = screenGui
+
+    local toggleIcon = Instance.new("ImageLabel")
+    toggleIcon.Name = "Icon"
+    toggleIcon.Image = toggle.Image or "rbxassetid://78756412031557"
+    toggleIcon.ScaleType = Enum.ScaleType.Fit
+    toggleIcon.BackgroundTransparency = 1
+    toggleIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+    toggleIcon.Position = UDim2.fromScale(0.5, 0.5)
+    local toggleSize = toggle.Size or 50
+    local toggleIconSize = math.max(20, math.floor(toggleSize * 0.62))
+    toggleIcon.Size = UDim2.fromOffset(toggleIconSize, toggleIconSize)
+    toggleIcon.Parent = toggleButton
 
     Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(0, 6)
 
