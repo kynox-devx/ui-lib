@@ -936,10 +936,33 @@ function Kynox.resolveGameConfigPath(gameName)
     return Kynox.GAMES_FOLDER .. "/" .. gameName .. ".json"
 end
 
+local function isBooleanFlagMap(tbl)
+    if type(tbl) ~= "table" then
+        return false
+    end
+    for _, value in pairs(tbl) do
+        if type(value) ~= "boolean" then
+            return false
+        end
+    end
+    return true
+end
+
 local function mergeGameConfig(target, source)
     for k, v in pairs(source) do
         if type(v) == "table" and type(target[k]) == "table" then
-            mergeGameConfig(target[k], v)
+            -- Multi-dropdown saves omit deselected keys; deep-merge would keep stale defaults.
+            if isBooleanFlagMap(v) or (next(v) == nil and isBooleanFlagMap(target[k])) then
+                local replacement = {}
+                for flagKey, flagValue in pairs(v) do
+                    if type(flagValue) == "boolean" then
+                        replacement[flagKey] = flagValue
+                    end
+                end
+                target[k] = replacement
+            else
+                mergeGameConfig(target[k], v)
+            end
         else
             target[k] = v
         end
