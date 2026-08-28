@@ -331,7 +331,10 @@ function LoadUiConfig()
 end
 
 function ConfigAuto.shouldPersistInUiFile(idx)
-	if CONFIG_DEFAULTS[idx] ~= nil or idx == "UILanguage" then
+	if idx == "UILanguage" then
+		return false
+	end
+	if type(CONFIG_DEFAULTS) == "table" and CONFIG_DEFAULTS[idx] ~= nil then
 		return false
 	end
 	return ConfigAuto.isAppearanceIndex(idx) or ConfigAuto.UI_ONLY_KEYS[idx] == true
