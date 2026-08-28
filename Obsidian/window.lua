@@ -70,7 +70,6 @@ function createToggleGui(parent, onToggle, toggle)
 	toggle = toggle or {}
 	local size = toggle.Size or 50
 	local cornerRadius = toggle.CornerRadius or 6
-	local TweenService = game:GetService("TweenService")
 
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "ToggleGui"
@@ -127,36 +126,11 @@ function createToggleGui(parent, onToggle, toggle)
 	buttonScale.Scale = 1
 	buttonScale.Parent = toggleButton
 
-	local hoverTweenIn = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local hoverTweenOut = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local activeHoverTween
-
-	function tweenScale(targetScale, tweenInfo)
-		if activeHoverTween then
-			activeHoverTween:Cancel()
-		end
-		activeHoverTween = TweenService:Create(buttonScale, tweenInfo or hoverTweenIn, { Scale = targetScale })
-		activeHoverTween:Play()
-	end
-
-	toggleButton.MouseEnter:Connect(function()
-		tweenScale(1.05, hoverTweenIn)
-	end)
-
-	toggleButton.MouseLeave:Connect(function()
-		tweenScale(1, hoverTweenOut)
-	end)
-
 	local UserInputService = game:GetService("UserInputService")
-	local RunService = game:GetService("RunService")
-	local dragSmooth = 5.5
 	local dragThreshold = 8
 	local dragging = false
 	local dragMoved = false
 	local dragStartMouse
-	local dragTargetPos
-	local dragCurrentPos
-	local dragLoopConn
 
 	local function clampTogglePos(center, size)
 		local camera = workspace.CurrentCamera
@@ -168,36 +142,9 @@ function createToggleGui(parent, onToggle, toggle)
 		)
 	end
 
-	local function captureToggleCenter()
-		local absolutePos = toggleButton.AbsolutePosition
-		local absoluteSize = toggleButton.AbsoluteSize
-		return Vector2.new(absolutePos.X + absoluteSize.X * 0.5, absolutePos.Y + absoluteSize.Y * 0.5)
-	end
-
 	local function applyToggleCenter(center)
 		toggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
 		toggleButton.Position = UDim2.fromOffset(center.X, center.Y)
-	end
-
-	local function stopDragLoop()
-		if dragLoopConn then
-			dragLoopConn:Disconnect()
-			dragLoopConn = nil
-		end
-	end
-
-	local function startDragLoop()
-		if dragLoopConn then
-			return
-		end
-		dragLoopConn = RunService.RenderStepped:Connect(function(dt)
-			if not dragging or not dragCurrentPos or not dragTargetPos then
-				return
-			end
-			local alpha = 1 - math.exp(-dragSmooth * dt)
-			dragCurrentPos = dragCurrentPos:Lerp(dragTargetPos, alpha)
-			applyToggleCenter(dragCurrentPos)
-		end)
 	end
 
 	toggleButton.InputBegan:Connect(function(input)
@@ -210,9 +157,6 @@ function createToggleGui(parent, onToggle, toggle)
 		dragging = true
 		dragMoved = false
 		dragStartMouse = UserInputService:GetMouseLocation()
-		dragCurrentPos = captureToggleCenter()
-		dragTargetPos = dragCurrentPos
-		startDragLoop()
 	end)
 
 	local function finishDrag(input)
@@ -226,7 +170,6 @@ function createToggleGui(parent, onToggle, toggle)
 			return
 		end
 		dragging = false
-		stopDragLoop()
 		if not dragMoved then
 			setHubVisible(not HubToggle.visible)
 		end
@@ -249,7 +192,7 @@ function createToggleGui(parent, onToggle, toggle)
 		if (mouse - dragStartMouse).Magnitude >= dragThreshold then
 			dragMoved = true
 		end
-		dragTargetPos = clampTogglePos(mouse, toggleButton.AbsoluteSize)
+		applyToggleCenter(clampTogglePos(mouse, toggleButton.AbsoluteSize))
 	end)
 
 	HubToggle.visible = CONFIG.Intro.Enabled ~= true
@@ -375,128 +318,6 @@ end
 Library.ForceCheckbox = false 
 Library.ShowToggleFrameInKeybinds = true 
 
-local function lerpUDim2(a, b, t)
-	return UDim2.new(
-		a.X.Scale + (b.X.Scale - a.X.Scale) * t,
-		a.X.Offset + (b.X.Offset - a.X.Offset) * t,
-		a.Y.Scale + (b.Y.Scale - a.Y.Scale) * t,
-		a.Y.Offset + (b.Y.Offset - a.Y.Offset) * t
-	)
-end
-
-function installSmoothWindowDrag(library)
-	if typeof(library) ~= "table" or library._kynoxSmoothDragInstalled then
-		return
-	end
-	library._kynoxSmoothDragInstalled = true
-
-	local baseMakeDraggable = library.MakeDraggable
-	local RunService = game:GetService("RunService")
-	local UserInputService = game:GetService("UserInputService")
-	local dragSmooth = 5.5
-
-	library.MakeDraggable = function(self, ui, dragFrame, ignoreToggled, isMainWindow)
-		if isMainWindow ~= true then
-			return baseMakeDraggable(self, ui, dragFrame, ignoreToggled, isMainWindow)
-		end
-
-		local startPos
-		local framePos
-		local dragging = false
-		local targetPos
-		local currentPos
-		local dragLoopConn
-
-		local function isClickInput(input)
-			return input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch
-		end
-
-		local function isMoveInput(input)
-			return input.UserInputType == Enum.UserInputType.MouseMovement
-				or input.UserInputType == Enum.UserInputType.Touch
-		end
-
-		local function stopDragLoop()
-			if dragLoopConn then
-				dragLoopConn:Disconnect()
-				dragLoopConn = nil
-			end
-		end
-
-		local function startDragLoop()
-			if dragLoopConn then
-				return
-			end
-			dragLoopConn = RunService.RenderStepped:Connect(function(dt)
-				if not currentPos or not targetPos then
-					return
-				end
-				local alpha = 1 - math.exp(-dragSmooth * dt)
-				currentPos = lerpUDim2(currentPos, targetPos, alpha)
-				ui.Position = currentPos
-			end)
-		end
-
-		local changedConn
-		dragFrame.InputBegan:Connect(function(input)
-			if not isClickInput(input) or library.CantDragForced then
-				return
-			end
-			startPos = input.Position
-			framePos = ui.Position
-			currentPos = ui.Position
-			targetPos = ui.Position
-			dragging = true
-			startDragLoop()
-
-			if changedConn then
-				changedConn:Disconnect()
-				changedConn = nil
-			end
-			changedConn = input.Changed:Connect(function()
-				if input.UserInputState ~= Enum.UserInputState.End then
-					return
-				end
-				dragging = false
-				if changedConn then
-					changedConn:Disconnect()
-					changedConn = nil
-				end
-			end)
-		end)
-
-		local inputChangedConn = UserInputService.InputChanged:Connect(function(input)
-			if (not ignoreToggled and not library.Toggled) or library.CantDragForced then
-				dragging = false
-				return
-			end
-			if dragging and isMoveInput(input) then
-				local delta = input.Position - startPos
-				targetPos = UDim2.new(
-					framePos.X.Scale,
-					framePos.X.Offset + delta.X,
-					framePos.Y.Scale,
-					framePos.Y.Offset + delta.Y
-				)
-			end
-		end)
-
-		ui.Destroying:Once(function()
-			dragging = false
-			stopDragLoop()
-			if changedConn then
-				changedConn:Disconnect()
-			end
-			if inputChangedConn then
-				inputChangedConn:Disconnect()
-			end
-		end)
-	end
-end
-
-installSmoothWindowDrag(Library)
-
 local windowSize = CONFIG.Window.PcSize
 if Library.IsMobile then
 	windowSize = CONFIG.Window.MobileSize
@@ -516,6 +337,13 @@ Window = Library:CreateWindow({
 	ToggleKeybind = CONFIG.Window.MinimizeKey,
 	SidebarMinWidth = CONFIG.Window.SidebarWidth,
 	Font = Enum.Font.Code,
+	Animations = {
+		ToggleWindow = false,
+		TabSwitch = false,
+		Groupbox = false,
+		Dropdown = false,
+		KeyPicker = false,
+	},
 })
 
 Library.ShowCustomCursor = false

@@ -1,16 +1,9 @@
 local Shell = {}
 
 Shell.GITHUB_BASE = "https://raw.githubusercontent.com/kynox-devx/ui-lib/main/Obsidian/"
-Shell.LOCAL_ROOT = "Ui/Obsidian/"
-Shell.REV = "ui-drag-v3"
+Shell.REV = "ui-template-v3"
 
 function Shell.fetch(rel)
-	if type(readfile) == "function" and type(isfile) == "function" then
-		local localPath = Shell.LOCAL_ROOT .. rel
-		if isfile(localPath) then
-			return readfile(localPath)
-		end
-	end
 	return game:HttpGet(Shell.GITHUB_BASE .. rel .. "?v=" .. Shell.REV)
 end
 
