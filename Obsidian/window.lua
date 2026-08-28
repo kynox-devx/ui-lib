@@ -45,6 +45,7 @@ local BrandingUi = {
 	toggleIcon = nil,
 	toggleStroke = nil,
 	toggleStrokeGradient = nil,
+	moveIcon = nil,
 }
 
 function getHubWindowVisible()
@@ -148,7 +149,7 @@ function createToggleGui(parent, onToggle, toggle)
 
 	local UserInputService = game:GetService("UserInputService")
 	local RunService = game:GetService("RunService")
-	local dragSmooth = 11
+	local dragSmooth = 5.5
 	local dragThreshold = 8
 	local dragging = false
 	local dragMoved = false
@@ -374,6 +375,128 @@ end
 Library.ForceCheckbox = false 
 Library.ShowToggleFrameInKeybinds = true 
 
+local function lerpUDim2(a, b, t)
+	return UDim2.new(
+		a.X.Scale + (b.X.Scale - a.X.Scale) * t,
+		a.X.Offset + (b.X.Offset - a.X.Offset) * t,
+		a.Y.Scale + (b.Y.Scale - a.Y.Scale) * t,
+		a.Y.Offset + (b.Y.Offset - a.Y.Offset) * t
+	)
+end
+
+function installSmoothWindowDrag(library)
+	if typeof(library) ~= "table" or library._kynoxSmoothDragInstalled then
+		return
+	end
+	library._kynoxSmoothDragInstalled = true
+
+	local baseMakeDraggable = library.MakeDraggable
+	local RunService = game:GetService("RunService")
+	local UserInputService = game:GetService("UserInputService")
+	local dragSmooth = 5.5
+
+	library.MakeDraggable = function(self, ui, dragFrame, ignoreToggled, isMainWindow)
+		if isMainWindow ~= true then
+			return baseMakeDraggable(self, ui, dragFrame, ignoreToggled, isMainWindow)
+		end
+
+		local startPos
+		local framePos
+		local dragging = false
+		local targetPos
+		local currentPos
+		local dragLoopConn
+
+		local function isClickInput(input)
+			return input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+		end
+
+		local function isMoveInput(input)
+			return input.UserInputType == Enum.UserInputType.MouseMovement
+				or input.UserInputType == Enum.UserInputType.Touch
+		end
+
+		local function stopDragLoop()
+			if dragLoopConn then
+				dragLoopConn:Disconnect()
+				dragLoopConn = nil
+			end
+		end
+
+		local function startDragLoop()
+			if dragLoopConn then
+				return
+			end
+			dragLoopConn = RunService.RenderStepped:Connect(function(dt)
+				if not currentPos or not targetPos then
+					return
+				end
+				local alpha = 1 - math.exp(-dragSmooth * dt)
+				currentPos = lerpUDim2(currentPos, targetPos, alpha)
+				ui.Position = currentPos
+			end)
+		end
+
+		local changedConn
+		dragFrame.InputBegan:Connect(function(input)
+			if not isClickInput(input) or library.CantDragForced then
+				return
+			end
+			startPos = input.Position
+			framePos = ui.Position
+			currentPos = ui.Position
+			targetPos = ui.Position
+			dragging = true
+			startDragLoop()
+
+			if changedConn then
+				changedConn:Disconnect()
+				changedConn = nil
+			end
+			changedConn = input.Changed:Connect(function()
+				if input.UserInputState ~= Enum.UserInputState.End then
+					return
+				end
+				dragging = false
+				if changedConn then
+					changedConn:Disconnect()
+					changedConn = nil
+				end
+			end)
+		end)
+
+		local inputChangedConn = UserInputService.InputChanged:Connect(function(input)
+			if (not ignoreToggled and not library.Toggled) or library.CantDragForced then
+				dragging = false
+				return
+			end
+			if dragging and isMoveInput(input) then
+				local delta = input.Position - startPos
+				targetPos = UDim2.new(
+					framePos.X.Scale,
+					framePos.X.Offset + delta.X,
+					framePos.Y.Scale,
+					framePos.Y.Offset + delta.Y
+				)
+			end
+		end)
+
+		ui.Destroying:Once(function()
+			dragging = false
+			stopDragLoop()
+			if changedConn then
+				changedConn:Disconnect()
+			end
+			if inputChangedConn then
+				inputChangedConn:Disconnect()
+			end
+		end)
+	end
+end
+
+installSmoothWindowDrag(Library)
+
 local windowSize = CONFIG.Window.PcSize
 if Library.IsMobile then
 	windowSize = CONFIG.Window.MobileSize
@@ -399,6 +522,19 @@ Library.ShowCustomCursor = false
 Window:SetSidebarWidth(CONFIG.Window.SidebarWidth)
 
 local TextService = game:GetService("TextService")
+
+function findWindowTopBar()
+	local main = Library.ScreenGui and Library.ScreenGui:FindFirstChild("Main")
+	if not main then
+		return nil
+	end
+	for _, child in ipairs(main:GetChildren()) do
+		if child:IsA("Frame") and child.Size.Y.Offset == 48 then
+			return child
+		end
+	end
+	return nil
+end
 
 function findWindowTitleHolder()
 	local main = Library.ScreenGui and Library.ScreenGui:FindFirstChild("Main")
@@ -430,6 +566,21 @@ function getBrandingSchemeColors()
 	}
 end
 
+function styleWindowMoveIcon()
+	local topBar = findWindowTopBar()
+	if not topBar then
+		return
+	end
+	local colors = getBrandingSchemeColors()
+	for _, child in ipairs(topBar:GetChildren()) do
+		if child:IsA("ImageLabel") and child.AnchorPoint == Vector2.new(1, 0.5) then
+			child.ImageColor3 = colors.main
+			BrandingUi.moveIcon = child
+			return
+		end
+	end
+end
+
 function applyBrandedLogoTheme()
 	local colors = getBrandingSchemeColors()
 	local tint = colors.accent
@@ -441,6 +592,17 @@ function applyBrandedLogoTheme()
 				child.ImageColor3 = tint
 			end
 		end
+	end
+
+	styleWindowMoveIcon()
+
+	if BrandingUi.moveIcon and BrandingUi.moveIcon.Parent then
+		pcall(function()
+			BrandingUi.moveIcon.ImageColor3 = colors.main
+		end)
+	else
+		BrandingUi.moveIcon = nil
+		styleWindowMoveIcon()
 	end
 
 	if BrandingUi.toggleButton then
@@ -1034,90 +1196,6 @@ function resetAppearance()
 end
 
 buildSettingsTab()
-
-function installHubWindowMotion(library)
-	if typeof(library) ~= "table" or library._kynoxMotionInstalled then
-		return
-	end
-	library._kynoxMotionInstalled = true
-
-	local TweenService = game:GetService("TweenService")
-	local chainedToggle = library.Toggle
-	local animBusy = false
-	local animSeq = 0
-
-	library.Toggle = function(self, ...)
-		local args = { ... }
-		if library.IsPicking then
-			return chainedToggle(self, table.unpack(args))
-		end
-
-		local main = library.ScreenGui and library.ScreenGui:FindFirstChild("Main")
-		if not main or animBusy then
-			return chainedToggle(self, table.unpack(args))
-		end
-
-		local scale = main:FindFirstChildOfClass("UIScale")
-		if not scale then
-			scale = Instance.new("UIScale")
-			scale.Scale = 1
-			scale.Parent = main
-		end
-
-		local wantOpen
-		if args[1] == nil then
-			wantOpen = main.Visible ~= true
-		else
-			wantOpen = args[1] == true
-		end
-
-		if wantOpen and main.Visible and scale.Scale >= 0.99 then
-			return chainedToggle(self, true, table.unpack(args, 2))
-		end
-		if not wantOpen and not main.Visible then
-			return chainedToggle(self, false, table.unpack(args, 2))
-		end
-
-		animBusy = true
-		animSeq += 1
-		local token = animSeq
-
-		local function releaseAnim()
-			if token == animSeq then
-				animBusy = false
-			end
-		end
-
-		if wantOpen then
-			scale.Scale = 0.94
-			chainedToggle(self, true, table.unpack(args, 2))
-			local tw = TweenService:Create(
-				scale,
-				TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-				{ Scale = 1 }
-			)
-			tw.Completed:Connect(releaseAnim)
-			tw:Play()
-		else
-			local tw = TweenService:Create(
-				scale,
-				TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
-				{ Scale = 0.94 }
-			)
-			tw.Completed:Connect(function()
-				if token ~= animSeq then
-					return
-				end
-				chainedToggle(self, false, table.unpack(args, 2))
-				scale.Scale = 1
-				releaseAnim()
-			end)
-			tw:Play()
-		end
-	end
-end
-
-installHubWindowMotion(Library)
 
 function bindAppearanceOptions()
 	local function onColorChanged()

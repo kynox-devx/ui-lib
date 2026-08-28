@@ -2,7 +2,7 @@ local Shell = {}
 
 Shell.GITHUB_BASE = "https://raw.githubusercontent.com/kynox-devx/ui-lib/main/Obsidian/"
 Shell.LOCAL_ROOT = "Ui/Obsidian/"
-Shell.REV = "71bb856"
+Shell.REV = "ui-drag-v3"
 
 function Shell.fetch(rel)
 	if type(readfile) == "function" and type(isfile) == "function" then
