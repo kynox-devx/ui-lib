@@ -1570,7 +1570,7 @@ function Lang.requestApply(langCode, window, displayName)
 	Lang.setDropdownLocked(true)
 	Lang.notify = Library:Notify({
 		Title = "Language",
-		Description = ("Loading %sÃ¢â‚¬Â¦ Please wait"):format(displayName),
+		Description = ("Loading %s… Please wait"):format(displayName),
 		Persist = true,
 		Steps = 100,
 	})
@@ -1585,8 +1585,8 @@ function Lang.requestApply(langCode, window, displayName)
 				end
 				local pct = total > 0 and math.floor((done / total) * 100) or 100
 				local line = total > 0
-					and ("Translating %sÃ¢â‚¬Â¦ %d/%d"):format(displayName, done, total)
-					or ("Translating %sÃ¢â‚¬Â¦"):format(displayName)
+					and ("Translating %s… %d/%d"):format(displayName, done, total)
+					or ("Translating %s…"):format(displayName)
 				Lang.notify:ChangeDescription(line)
 				Lang.notify:ChangeStep(pct)
 			end,
@@ -1699,7 +1699,7 @@ function Lang.apply(langCode, window, opts)
 	if not opts.silent then
 		Library:Notify({
 			Title = "Language",
-			Description = ("Translating %d stringsÃ¢â‚¬Â¦"):format(total),
+			Description = ("Translating %d strings…"):format(total),
 			Time = 3,
 		})
 	end

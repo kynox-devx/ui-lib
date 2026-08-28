@@ -41,6 +41,7 @@ applyKynoxScheme()
 local TOGGLE = CONFIG.Toggle
 local UiLoops = { SessionTimer = 0 }
 local BrandingUi = {
+	toggleButton = nil,
 	toggleIcon = nil,
 	toggleStroke = nil,
 	toggleStrokeGradient = nil,
@@ -82,11 +83,12 @@ function createToggleGui(parent, onToggle, toggle)
 	toggleButton.Size = UDim2.fromOffset(size, size)
 	toggleButton.Position = toggle.Position or UDim2.new(0.06, 0, 0.08, 0)
 	toggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
-	toggleButton.BackgroundColor3 = toggle.BackgroundColor or KYNOX_COLORS.Background
+	toggleButton.BackgroundColor3 = toggle.BackgroundColor or KYNOX_COLORS.Main
 	toggleButton.BackgroundTransparency = toggle.BackgroundTransparency or 0
 	toggleButton.BorderSizePixel = 0
 	toggleButton.AutoButtonColor = false
 	toggleButton.Parent = screenGui
+	BrandingUi.toggleButton = toggleButton
 
 	Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(0, cornerRadius)
 
@@ -144,6 +146,111 @@ function createToggleGui(parent, onToggle, toggle)
 		tweenScale(1, hoverTweenOut)
 	end)
 
+	local UserInputService = game:GetService("UserInputService")
+	local RunService = game:GetService("RunService")
+	local dragSmooth = 11
+	local dragThreshold = 8
+	local dragging = false
+	local dragMoved = false
+	local dragStartMouse
+	local dragTargetPos
+	local dragCurrentPos
+	local dragLoopConn
+
+	local function clampTogglePos(center, size)
+		local camera = workspace.CurrentCamera
+		local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+		local half = size * 0.5
+		return Vector2.new(
+			math.clamp(center.X, half.X, viewport.X - half.X),
+			math.clamp(center.Y, half.Y, viewport.Y - half.Y)
+		)
+	end
+
+	local function captureToggleCenter()
+		local absolutePos = toggleButton.AbsolutePosition
+		local absoluteSize = toggleButton.AbsoluteSize
+		return Vector2.new(absolutePos.X + absoluteSize.X * 0.5, absolutePos.Y + absoluteSize.Y * 0.5)
+	end
+
+	local function applyToggleCenter(center)
+		toggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
+		toggleButton.Position = UDim2.fromOffset(center.X, center.Y)
+	end
+
+	local function stopDragLoop()
+		if dragLoopConn then
+			dragLoopConn:Disconnect()
+			dragLoopConn = nil
+		end
+	end
+
+	local function startDragLoop()
+		if dragLoopConn then
+			return
+		end
+		dragLoopConn = RunService.RenderStepped:Connect(function(dt)
+			if not dragging or not dragCurrentPos or not dragTargetPos then
+				return
+			end
+			local alpha = 1 - math.exp(-dragSmooth * dt)
+			dragCurrentPos = dragCurrentPos:Lerp(dragTargetPos, alpha)
+			applyToggleCenter(dragCurrentPos)
+		end)
+	end
+
+	toggleButton.InputBegan:Connect(function(input)
+		if
+			input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+		dragging = true
+		dragMoved = false
+		dragStartMouse = UserInputService:GetMouseLocation()
+		dragCurrentPos = captureToggleCenter()
+		dragTargetPos = dragCurrentPos
+		startDragLoop()
+	end)
+
+	local function finishDrag(input)
+		if
+			input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+		if not dragging then
+			return
+		end
+		dragging = false
+		stopDragLoop()
+		if not dragMoved then
+			setHubVisible(not HubToggle.visible)
+		end
+	end
+
+	toggleButton.InputEnded:Connect(finishDrag)
+	UserInputService.InputEnded:Connect(finishDrag)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then
+			return
+		end
+		if
+			input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+		local mouse = UserInputService:GetMouseLocation()
+		if (mouse - dragStartMouse).Magnitude >= dragThreshold then
+			dragMoved = true
+		end
+		dragTargetPos = clampTogglePos(mouse, toggleButton.AbsoluteSize)
+	end)
+
 	HubToggle.visible = CONFIG.Intro.Enabled ~= true
 
 	local function setHubVisible(visible)
@@ -157,10 +264,6 @@ function createToggleGui(parent, onToggle, toggle)
 			HubToggle.visible = open
 		end
 	end
-
-	toggleButton.MouseButton1Click:Connect(function()
-		setHubVisible(not HubToggle.visible)
-	end)
 
 	return screenGui, toggleButton
 end
@@ -338,6 +441,14 @@ function applyBrandedLogoTheme()
 				child.ImageColor3 = tint
 			end
 		end
+	end
+
+	if BrandingUi.toggleButton then
+		pcall(function()
+			if BrandingUi.toggleButton.Parent ~= nil then
+				BrandingUi.toggleButton.BackgroundColor3 = colors.main
+			end
+		end)
 	end
 
 	if BrandingUi.toggleIcon then
@@ -923,6 +1034,90 @@ function resetAppearance()
 end
 
 buildSettingsTab()
+
+function installHubWindowMotion(library)
+	if typeof(library) ~= "table" or library._kynoxMotionInstalled then
+		return
+	end
+	library._kynoxMotionInstalled = true
+
+	local TweenService = game:GetService("TweenService")
+	local chainedToggle = library.Toggle
+	local animBusy = false
+	local animSeq = 0
+
+	library.Toggle = function(self, ...)
+		if library.IsPicking then
+			return chainedToggle(self, ...)
+		end
+
+		local main = library.ScreenGui and library.ScreenGui:FindFirstChild("Main")
+		if not main or animBusy then
+			return chainedToggle(self, ...)
+		end
+
+		local scale = main:FindFirstChildOfClass("UIScale")
+		if not scale then
+			scale = Instance.new("UIScale")
+			scale.Scale = 1
+			scale.Parent = main
+		end
+
+		local args = { ... }
+		local wantOpen
+		if args[1] == nil then
+			wantOpen = main.Visible ~= true
+		else
+			wantOpen = args[1] == true
+		end
+
+		if wantOpen and main.Visible and scale.Scale >= 0.99 then
+			return chainedToggle(self, true, ...)
+		end
+		if not wantOpen and not main.Visible then
+			return chainedToggle(self, false, ...)
+		end
+
+		animBusy = true
+		animSeq += 1
+		local token = animSeq
+
+		local function releaseAnim()
+			if token == animSeq then
+				animBusy = false
+			end
+		end
+
+		if wantOpen then
+			scale.Scale = 0.94
+			chainedToggle(self, true, ...)
+			local tw = TweenService:Create(
+				scale,
+				TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				{ Scale = 1 }
+			)
+			tw.Completed:Connect(releaseAnim)
+			tw:Play()
+		else
+			local tw = TweenService:Create(
+				scale,
+				TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+				{ Scale = 0.94 }
+			)
+			tw.Completed:Connect(function()
+				if token ~= animSeq then
+					return
+				end
+				chainedToggle(self, false, ...)
+				scale.Scale = 1
+				releaseAnim()
+			end)
+			tw:Play()
+		end
+	end
+end
+
+installHubWindowMotion(Library)
 
 function bindAppearanceOptions()
 	local function onColorChanged()
