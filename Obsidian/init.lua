@@ -1,7 +1,7 @@
 local Shell = {}
 
 Shell.GITHUB_BASE = "https://raw.githubusercontent.com/kynox-devx/ui-lib/main/Obsidian/"
-Shell.REV = "ui-template-v3"
+Shell.REV = "ui-template-v4"
 
 function Shell.fetch(rel)
 	return game:HttpGet(Shell.GITHUB_BASE .. rel .. "?v=" .. Shell.REV)
