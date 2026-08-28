@@ -15,9 +15,9 @@ end
 
 function Shell.run(rel)
 	local src = Shell.fetch(rel)
-	local fn = loadstring(src)
+	local fn, err = loadstring(src, "@" .. rel)
 	if not fn then
-		error("Obsidian UI load failed: " .. tostring(rel))
+		error("Obsidian UI load failed: " .. tostring(rel) .. " (" .. tostring(err) .. ")")
 	end
 	fn()
 end

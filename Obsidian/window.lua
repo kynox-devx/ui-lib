@@ -1047,13 +1047,14 @@ function installHubWindowMotion(library)
 	local animSeq = 0
 
 	library.Toggle = function(self, ...)
+		local args = { ... }
 		if library.IsPicking then
-			return chainedToggle(self, ...)
+			return chainedToggle(self, table.unpack(args))
 		end
 
 		local main = library.ScreenGui and library.ScreenGui:FindFirstChild("Main")
 		if not main or animBusy then
-			return chainedToggle(self, ...)
+			return chainedToggle(self, table.unpack(args))
 		end
 
 		local scale = main:FindFirstChildOfClass("UIScale")
@@ -1063,7 +1064,6 @@ function installHubWindowMotion(library)
 			scale.Parent = main
 		end
 
-		local args = { ... }
 		local wantOpen
 		if args[1] == nil then
 			wantOpen = main.Visible ~= true
@@ -1072,10 +1072,10 @@ function installHubWindowMotion(library)
 		end
 
 		if wantOpen and main.Visible and scale.Scale >= 0.99 then
-			return chainedToggle(self, true, ...)
+			return chainedToggle(self, true, table.unpack(args, 2))
 		end
 		if not wantOpen and not main.Visible then
-			return chainedToggle(self, false, ...)
+			return chainedToggle(self, false, table.unpack(args, 2))
 		end
 
 		animBusy = true
@@ -1090,7 +1090,7 @@ function installHubWindowMotion(library)
 
 		if wantOpen then
 			scale.Scale = 0.94
-			chainedToggle(self, true, ...)
+			chainedToggle(self, true, table.unpack(args, 2))
 			local tw = TweenService:Create(
 				scale,
 				TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
@@ -1108,7 +1108,7 @@ function installHubWindowMotion(library)
 				if token ~= animSeq then
 					return
 				end
-				chainedToggle(self, false, ...)
+				chainedToggle(self, false, table.unpack(args, 2))
 				scale.Scale = 1
 				releaseAnim()
 			end)
